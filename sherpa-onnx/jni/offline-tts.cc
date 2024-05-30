@@ -213,3 +213,14 @@ Java_com_k2fsa_sherpa_onnx_OfflineTts_generateWithCallbackImpl(
 
   return obj_arr;
 }
+SHERPA_ONNX_EXTERN_C
+JNIEXPORT jstring JNICALL Java_com_k2fsa_sherpa_onnx_OfflineTts_normalizeText(
+    JNIEnv *env, jobject /*obj*/, jlong ptr, jstring text) {
+  const char *p_text = env->GetStringUTFChars(text, nullptr);
+  SHERPA_ONNX_LOGE("string is: %s", p_text);
+  std::string result =
+      reinterpret_cast<sherpa_onnx::OfflineTts *>(ptr)->NormalizeText(p_text);
+  SHERPA_ONNX_LOGE("normalized string is: %s", result);
+  env->ReleaseStringUTFChars(text, p_text);
+  return env->NewStringUTF(result.c_str());
+}

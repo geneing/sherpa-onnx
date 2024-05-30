@@ -87,6 +87,11 @@ class OfflineTts {
   GeneratedAudio Generate(const std::string &text, int64_t sid = 0,
                           float speed = 1.0,
                           GeneratedAudioCallback callback = nullptr) const;
+  
+  std::string NormalizeText(const std::string &text) const;
+
+  std::vector<std::vector<int64_t>> TokenizeText(
+      const std::string &text, const std::string &voice) const;
 
   // Return the sample rate of the generated audio
   int32_t SampleRate() const;

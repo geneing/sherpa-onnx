@@ -165,17 +165,9 @@ class OfflineTtsVitsImpl : public OfflineTtsImpl {
       SHERPA_ONNX_LOGE("Raw text: %s", text.c_str());
     }
 
-    if (!tn_list_.empty()) {
-      for (const auto &tn : tn_list_) {
-        text = tn->Normalize(text);
-        if (config_.model.debug) {
-          SHERPA_ONNX_LOGE("After normalizing: %s", text.c_str());
-        }
-      }
-    }
+    text = NormalizeText(text);
 
-    std::vector<std::vector<int64_t>> x =
-        frontend_->ConvertTextToTokenIds(text, meta_data.voice);
+    std::vector<std::vector<int64_t>> x = TokenizeText(text, meta_data.voice);
 
     if (x.empty() || (x.size() == 1 && x[0].empty())) {
       SHERPA_ONNX_LOGE("Failed to convert %s to token IDs", text.c_str());
@@ -257,6 +249,27 @@ class OfflineTtsVitsImpl : public OfflineTtsImpl {
     }
 
     return ans;
+  }
+  
+  std::string NormalizeText(const std::string &text) const {
+    std::string textout;
+    
+    if (!tn_list_.empty()) {
+      for (const auto &tn : tn_list_) {
+        textout = tn->Normalize(text);
+        if (config_.model.debug) {
+          SHERPA_ONNX_LOGE("After normalizing: %s", text.c_str());
+        }
+      }
+    } else{
+      textout = text;
+    }
+    
+    return textout;
+  }
+
+  std::vector<std::vector<int64_t>> TokenizeText( const std::string &text, const std::string &voice ) const {
+    return frontend_->ConvertTextToTokenIds(text, voice);
   }
 
  private:

@@ -28,6 +28,7 @@ public class OfflineTts {
         return new GeneratedAudio(samples, sampleRate);
     }
 
+
     @Override
     protected void finalize() throws Throwable {
         release();
@@ -50,4 +51,6 @@ public class OfflineTts {
     private native Object[] generateImpl(long ptr, String text, int sid, float speed);
 
     private native long newFromFile(OfflineTtsConfig config);
+
+    private native String normalizeText(String text); 
 }
