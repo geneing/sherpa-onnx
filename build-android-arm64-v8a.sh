@@ -42,13 +42,14 @@ fi
 
 echo "ANDROID_NDK: $ANDROID_NDK"
 sleep 1
-onnxruntime_version=1.18.0
+
+onnxruntime_version=1.17.3
 
 if [ ! -f $onnxruntime_version/jni/arm64-v8a/libonnxruntime.so ]; then
   mkdir -p $onnxruntime_version
   pushd $onnxruntime_version
   # wget -c -q https://github.com/csukuangfj/onnxruntime-libs/releases/download/v${onnxruntime_version}/onnxruntime-android-${onnxruntime_version}.zip
-  wget -c -q https://repo1.maven.org/maven2/com/microsoft/onnxruntime/onnxruntime-android/${onnxruntime_version}/onnxruntime-android-${onnxruntime_version}.aar 
+  wget -c -q https://repo1.maven.org/maven2/com/microsoft/onnxruntime/onnxruntime-android/${onnxruntime_version}/onnxruntime-android-${onnxruntime_version}.aar
   mv onnxruntime-android-${onnxruntime_version}.aar onnxruntime-android-${onnxruntime_version}.zip
   unzip onnxruntime-android-${onnxruntime_version}.zip
   rm onnxruntime-android-${onnxruntime_version}.zip
@@ -86,13 +87,13 @@ cmake -DCMAKE_TOOLCHAIN_FILE="$ANDROID_NDK/build/cmake/android.toolchain.cmake" 
     -DSHERPA_ONNX_ENABLE_C_API=OFF \
     -DCMAKE_INSTALL_PREFIX=./install \
     -DANDROID_ABI="arm64-v8a" \
-    -DANDROID_PLATFORM=android-27 ..
+    -DANDROID_PLATFORM=android-34 ..
 
 # Please use -DANDROID_PLATFORM=android-27 if you want to use Android NNAPI
 
 # make VERBOSE=1 -j4
 make clean
-make VERBOSE=1 -j6
+make VERBOSE=1 -j4
 make install/strip
 cp -fv $onnxruntime_version/jni/arm64-v8a/libonnxruntime.so install/lib
 rm -rf install/lib/pkgconfig

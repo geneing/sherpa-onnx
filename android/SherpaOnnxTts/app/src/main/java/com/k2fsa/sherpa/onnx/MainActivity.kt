@@ -19,6 +19,8 @@ import java.io.IOException
 
 const val TAG = "sherpa-onnx"
 
+
+
 class MainActivity : AppCompatActivity() {
     private lateinit var tts: OfflineTts
     private lateinit var text: EditText
@@ -53,13 +55,30 @@ class MainActivity : AppCompatActivity() {
         generate.setOnClickListener { onClickGenerate() }
         play.setOnClickListener { onClickPlay() }
 
-        sid.setText("0")
+        sid.setText("1")
         speed.setText("1.0")
 
         // we will change sampleText here in the CI
-        val sampleText = ""
-        text.setText(sampleText)
+//        val sampleText = "Of all the problems which have been submitted to my friend, Mister \n" +
+//                "Sherlock Holmes, for solution during the years of our intimacy, there\n" +
+//                "were only two which I was the means of introducing to his notice—that\n" +
+//                "of Mister Hatherley’s thumb, and that of Colonel Warburton’s madness. Of\n" +
+//                "these the latter may have afforded a finer field for an acute and\n" +
+//                "original observer, but the other was so strange in its inception and so\n" +
+//                "dramatic in its details that it may be the more worthy of being placed\n" +
+//                "upon record, even if it gave my friend fewer openings for those\n" +
+//                "deductive methods of reasoning by which he achieved such remarkable\n" +
+//                "results. The story has, I believe, been told more than once in the\n" +
+//                "newspapers, but, like all such narratives, its effect is much less\n" +
+//                "striking when set forth _en bloc_ in a single half-column of print than\n" +
+//                "when the facts slowly evolve before your own eyes, and the mystery\n" +
+//                "clears gradually away as each new discovery furnishes a step which\n" +
+//                "leads on to the complete truth. At the time the circumstances made a\n" +
+//                "deep impression upon me, and the lapse of two years has hardly served\n" +
+//                "to weaken the effect."
 
+        val sampleText = "Of all the problems which have been submitted to my friend."
+        text.setText(sampleText)
         play.isEnabled = false
     }
 
@@ -128,20 +147,37 @@ class MainActivity : AppCompatActivity() {
 
         play.isEnabled = false
         Thread {
-            val audio = tts.generateWithCallback(
-                text = textStr,
-                sid = sidInt,
-                speed = speedFloat,
-                callback = this::callback
-            )
+            if(false) {
+                val audio = tts.generateWithCallback(
+                    text = textStr,
+                    sid = sidInt,
+                    speed = speedFloat,
+                    callback = this::callback
+                )
 
-            val filename = application.filesDir.absolutePath + "/generated.wav"
-            val ok = audio.samples.size > 0 && audio.save(filename)
-            if (ok) {
-                runOnUiThread {
-                    play.isEnabled = true
-                    track.stop()
+                val filename = application.filesDir.absolutePath + "/generated.wav"
+                val ok = audio.samples.size > 0 && audio.save(filename)
+                if (ok) {
+                    runOnUiThread {
+                        play.isEnabled = true
+                        track.stop()
+                    }
                 }
+            }
+            else {
+                val sentences = (textStr.filter{it != '\n'}).split(Regex("""(?<=[.!?\n])\s+"""))
+                var total_time = 0L;
+                sentences.forEach {
+                    val start = System.currentTimeMillis()
+                    val audio = tts.generate(
+                        text = it,
+                        sid = sidInt,
+                        speed = speedFloat
+                        )
+                    total_time += System.currentTimeMillis() - start
+                    Log.i(TAG, "textlen: ${it.length}, time: ${System.currentTimeMillis() - start} ms")
+                }
+                Log.i(TAG, "Total time: ${total_time} ms")
             }
         }.start()
     }
@@ -168,12 +204,12 @@ class MainActivity : AppCompatActivity() {
         // The purpose of such a design is to make the CI test easier
         // Please see
         // https://github.com/k2-fsa/sherpa-onnx/blob/master/scripts/apk/generate-tts-apk-script.py
-        modelDir = null
-        modelName = null
+        modelDir = "models"
+        modelName = "en_US-libritts_r-medium.onnx"
         ruleFsts = null
         ruleFars = null
         lexicon = null
-        dataDir = null
+        dataDir = "models/espeak-ng-data"
         dictDir = null
 
         // Example 1:
