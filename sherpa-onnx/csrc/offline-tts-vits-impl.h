@@ -139,6 +139,27 @@ class OfflineTtsVitsImpl : public OfflineTtsImpl {
     return model_->GetMetaData().num_speakers;
   }
 
+  std::string NormalizeText(const std::string &text) const override{
+    std::string textout;
+    
+    if (!tn_list_.empty()) {
+      for (const auto &tn : tn_list_) {
+        textout = tn->Normalize(text);
+        if (config_.model.debug) {
+          SHERPA_ONNX_LOGE("After normalizing: %s", text.c_str());
+        }
+      }
+    } else{
+      textout = text;
+    }
+    
+    return textout;
+  }
+
+  std::vector<std::vector<int64_t>> TokenizeText( const std::string &text, const std::string &voice ) const override {
+    return frontend_->ConvertTextToTokenIds(text, voice);
+  }
+
   GeneratedAudio Generate(
       const std::string &_text, int64_t sid = 0, float speed = 1.0,
       GeneratedAudioCallback callback = nullptr) const override {
@@ -250,27 +271,7 @@ class OfflineTtsVitsImpl : public OfflineTtsImpl {
 
     return ans;
   }
-  
-  std::string NormalizeText(const std::string &text) const {
-    std::string textout;
-    
-    if (!tn_list_.empty()) {
-      for (const auto &tn : tn_list_) {
-        textout = tn->Normalize(text);
-        if (config_.model.debug) {
-          SHERPA_ONNX_LOGE("After normalizing: %s", text.c_str());
-        }
-      }
-    } else{
-      textout = text;
-    }
-    
-    return textout;
-  }
-
-  std::vector<std::vector<int64_t>> TokenizeText( const std::string &text, const std::string &voice ) const {
-    return frontend_->ConvertTextToTokenIds(text, voice);
-  }
+ 
 
  private:
 #if __ANDROID_API__ >= 9

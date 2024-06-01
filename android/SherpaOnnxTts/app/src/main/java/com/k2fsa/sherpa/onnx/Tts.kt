@@ -67,13 +67,13 @@ class OfflineTts(
         File(tokenFile).forEachLine {
             try {
                 tokenMap[it[0]] = it.split(" ")[1].toLong()
-            }
-            catch(e: Exception){
+            } catch (e: Exception) {
                 Log.e("SherpaOnnx", "Error parsing token file: $e")
             }
         }
         return tokenMap
     }
+
     fun sampleRate() = getSampleRate(ptr)
 
     fun numSpeakers() = getNumSpeakers(ptr)
@@ -84,11 +84,17 @@ class OfflineTts(
         speed: Float = 1.0f
     ): GeneratedAudio {
         // val objArray = generateImpl(ptr, text = text, sid = sid, speed = speed)
-
-        val normText = normalizeText(text)
+        Log.d("SherpaOnnx", "text: $text")
+        val normText = normalizeText(ptr, text)
         Log.d("SherpaOnnx", "normText: $normText")
-        val tokenIds = convertTextToTokenIds(normText)
-        Log.d("SherpaOnnx", "tokenIds: $tokenIds")
+        val tokenIds = convertTextToTokenIds(ptr, normText, "en-us")
+
+        for( tokenVector in tokenIds ) {
+            Log.d("SherpaOnnx", "tokenVector size: $tokenVector.size")
+            for( v in tokenVector ) {
+                Log.d("SherpaOnnx", "tokenIds: $v")
+            }
+        }
 
 
         return GeneratedAudio(
@@ -186,7 +192,8 @@ class OfflineTts(
     private external fun getSampleRate(ptr: Long): Int
     private external fun getNumSpeakers(ptr: Long): Int
 
-    private external fun normalizeText( text: String): String
+    private external fun normalizeText(ptr: Long, text: String): String
+    private external fun convertTextToTokenIds(ptr: Long, text: String, voice: String): List< LongArray >
 
     // The returned array has two entries:
     //  - the first entry is an 1-D float array containing audio samples.
@@ -212,99 +219,6 @@ class OfflineTts(
             System.loadLibrary("sherpa-onnx-jni")
         }
     }
-
-    /**
-     * Converts a given text to a list of lists of token IDs.
-     *
-     * @param text The input text to be converted.
-     * @return A list of lists of token IDs. Each inner list represents a sentence in the text.
-     */
-    fun convertTextToTokenIds(
-        text: String
-    ): List<List<Long>> {
-        val useEosBos = false //metaData.useEosBos
-        val bosId = 0L //metaData.bosId
-        val eosId = 0L //metaData.eosId
-        val blankId = 0L //metaData.blankId
-        val addBlank = false //metaData.addBlank
-
-        val convertedText = text.lowercase().replace("\\s+".toRegex(), "")
-
-        val thisSentence = mutableListOf<Long>()
-        val ans = mutableListOf<MutableList<Long>>()
-
-        if (addBlank) {
-            if (useEosBos) {
-                thisSentence.add(bosId)
-            }
-            thisSentence.add(blankId)
-
-            for (c in convertedText) {
-                if (token2id.containsKey(c)) {
-                    thisSentence.add(token2id[c]!!)
-                    thisSentence.add(blankId)
-                } else {
-                    Log.e("SherpaOnnx", "Skip unknown character. Unicode codepoint: \\U+%04x. $c".format(c.code))
-
-                }
-
-                if (c == '.' || c == ':' || c == '?' || c == '!') {
-                    // end of a sentence
-                    if (useEosBos) {
-                        thisSentence.add(eosId)
-                    }
-
-                    ans.add(thisSentence.toMutableList())
-
-                    // re-initialize thisSentence
-                    if (useEosBos) {
-                        thisSentence.add(bosId)
-                    }
-                    thisSentence.add(blankId)
-                }
-            }
-
-            if (useEosBos) {
-                thisSentence.add(eosId)
-            }
-
-            if (thisSentence.size > 1 + (if(useEosBos) 1 else 0) ) {
-                ans.add(thisSentence.toMutableList())
-            }
-        } else {
-            // not adding blank
-            if (useEosBos) {
-                thisSentence.add(bosId)
-            }
-
-            for (c in convertedText) {
-                if (token2id.containsKey(c)) {
-                    thisSentence.add(token2id[c]!!)
-                }
-
-                if (c == '.' || c == ':' || c == '?' || c == '!') {
-                    // end of a sentence
-                    if (useEosBos) {
-                        thisSentence.add(eosId)
-                    }
-
-                    ans.add(thisSentence.toMutableList())
-
-                    // re-initialize thisSentence
-                    if (useEosBos) {
-                        thisSentence.add(bosId)
-                    }
-                }
-            }
-
-            if (thisSentence.size > 1) {
-                ans.add(thisSentence.toMutableList())
-            }
-        }
-
-        return ans
-    }
-
 }
 
 // please refer to

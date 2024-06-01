@@ -52,5 +52,7 @@ public class OfflineTts {
 
     private native long newFromFile(OfflineTtsConfig config);
 
-    private native String normalizeText(String text); 
+    private native String normalizeText(long ptr, String text); 
+
+    private native List<long[]> convertTextToTokenIds( long ptr, String text, String voice);
 }

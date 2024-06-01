@@ -90,6 +90,15 @@ GeneratedAudio OfflineTts::Generate(
   return impl_->Generate(text, sid, speed, callback);
 }
 
+std::string OfflineTts::NormalizeText(const std::string &text) const {
+  return impl_->NormalizeText(text);
+}
+
+std::vector<std::vector<int64_t>> OfflineTts::TokenizeText(
+    const std::string &text, const std::string &voice) const {
+  return impl_->TokenizeText(text, voice);
+}
+
 int32_t OfflineTts::SampleRate() const { return impl_->SampleRate(); }
 
 int32_t OfflineTts::NumSpeakers() const { return impl_->NumSpeakers(); }

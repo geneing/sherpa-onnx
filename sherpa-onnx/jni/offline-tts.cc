@@ -216,11 +216,47 @@ Java_com_k2fsa_sherpa_onnx_OfflineTts_generateWithCallbackImpl(
 SHERPA_ONNX_EXTERN_C
 JNIEXPORT jstring JNICALL Java_com_k2fsa_sherpa_onnx_OfflineTts_normalizeText(
     JNIEnv *env, jobject /*obj*/, jlong ptr, jstring text) {
+
   const char *p_text = env->GetStringUTFChars(text, nullptr);
   SHERPA_ONNX_LOGE("string is: %s", p_text);
   std::string result =
-      reinterpret_cast<sherpa_onnx::OfflineTts *>(ptr)->NormalizeText(p_text);
-  SHERPA_ONNX_LOGE("normalized string is: %s", result);
+      reinterpret_cast<sherpa_onnx::OfflineTts *>(ptr)->NormalizeText(std::string(p_text));
+  SHERPA_ONNX_LOGE("normalized string is: %s", result.c_str());
   env->ReleaseStringUTFChars(text, p_text);
   return env->NewStringUTF(result.c_str());
 }
+
+SHERPA_ONNX_EXTERN_C
+JNIEXPORT jobject JNICALL Java_com_k2fsa_sherpa_onnx_OfflineTts_convertTextToTokenIds(
+    JNIEnv *env, jobject /*obj*/, jlong ptr, jstring text, jstring voice) {
+
+    const char *p_text = env->GetStringUTFChars(text, nullptr);
+    const char *p_voice = env->GetStringUTFChars(voice, nullptr);
+    SHERPA_ONNX_LOGE("string is: %s, voice is: %s", p_text, p_voice);
+    std::vector<std::vector<int64_t>> textTokens = reinterpret_cast<sherpa_onnx::OfflineTts *>(ptr)->TokenizeText(std::string(p_text), std::string(p_voice));
+    SHERPA_ONNX_LOGE("past tokenization");
+
+    jclass arrayListClass = env->FindClass("java/util/ArrayList");    
+    SHERPA_ONNX_LOGE("past arrayListClass");
+    jmethodID arrayListConstructor = env->GetMethodID(arrayListClass, "<init>", "()V");
+    SHERPA_ONNX_LOGE("past arrayListConstructor");
+    jmethodID addMethod = env->GetMethodID(arrayListClass, "add", "(Ljava/lang/Object;)Z");
+    SHERPA_ONNX_LOGE("past addMethod");
+
+    // The list we're going to return:
+    jobject list = env->NewObject(arrayListClass, arrayListConstructor);
+    SHERPA_ONNX_LOGE("past list");
+
+    for(auto& tokenArray : textTokens) {
+        SHERPA_ONNX_LOGE("adding tokenArray size: %lu", tokenArray.size());
+        jlongArray longArray = env->NewLongArray(tokenArray.size());
+        SHERPA_ONNX_LOGE("past longArray");
+        env->SetLongArrayRegion(longArray, 0, tokenArray.size(), tokenArray.data());
+        SHERPA_ONNX_LOGE("past SetLongArrayRegion");
+        // Add it to the list
+        env->CallBooleanMethod(list, addMethod, longArray);
+        SHERPA_ONNX_LOGE("past CallBooleanMethod");
+    }
+    return list;
+}
+

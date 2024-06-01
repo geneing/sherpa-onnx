@@ -35,6 +35,9 @@ class OfflineTtsImpl {
   virtual std::string NormalizeText(
       const std::string &text ) const = 0;
 
+  virtual std::vector<std::vector<int64_t>> TokenizeText(
+      const std::string &text, const std::string &voice) const = 0;
+
   // Return the sample rate of the generated audio
   virtual int32_t SampleRate() const = 0;
 
