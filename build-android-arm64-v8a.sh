@@ -4,7 +4,7 @@ set -ex
 dir=$PWD/build-android-arm64-v8a
 
 mkdir -p $dir
-cd $dir
+pushd $dir
 
 # Note from https://github.com/Tencent/ncnn/wiki/how-to-build#build-for-android
 # (optional) remove the hardcoded debug flag in Android NDK android-ndk
@@ -92,11 +92,15 @@ cmake -DCMAKE_TOOLCHAIN_FILE="$ANDROID_NDK/build/cmake/android.toolchain.cmake" 
 # Please use -DANDROID_PLATFORM=android-27 if you want to use Android NNAPI
 
 # make VERBOSE=1 -j4
-make clean
+# make clean
 make VERBOSE=1 -j4
 make install/strip
 cp -fv $onnxruntime_version/jni/arm64-v8a/libonnxruntime.so install/lib
 rm -rf install/lib/pkgconfig
+
+popd
+cp build-android-arm64-v8a/install/lib/lib*.so  android/SherpaOnnxTts/app/src/main/jniLibs/arm64-v8a
+cp build-android-arm64-v8a/install/lib/lib*.so  android/SherpaOnnxTtsEngine/app/src/main/jniLibs/arm64-v8a
 
 # To run the generated binaries on Android, please use the following steps.
 #

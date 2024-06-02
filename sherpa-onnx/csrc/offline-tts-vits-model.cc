@@ -46,6 +46,13 @@ class OfflineTtsVitsModel::Impl {
   }
 
   const OfflineTtsVitsModelMetaData &GetMetaData() const { return meta_data_; }
+  const void LogMetadata() const {
+    SHERPA_ONNX_LOGE("metadata: is_piper %d, is_coqui %d, jieba: %d, num_speakers %d", meta_data_.is_piper, meta_data_.is_coqui, meta_data_.jieba, meta_data_.num_speakers);
+    SHERPA_ONNX_LOGE("metadata: add_blank %d, blank_id %d, bos_id %d eos_id %d use_eos_bos %d, pad_id %d", 
+      meta_data_.add_blank, meta_data_.blank_id, meta_data_.bos_id, meta_data_.eos_id, meta_data_.use_eos_bos, meta_data_.pad_id);
+    SHERPA_ONNX_LOGE("metadata: punctuations: %s, language: %s, voice: %s, frontend: %s", 
+      meta_data_.punctuations.c_str(), meta_data_.language.c_str(), meta_data_.voice.c_str(), meta_data_.frontend.c_str());
+  }
 
  private:
   void Init(void *model_data, size_t model_data_length) {
@@ -115,6 +122,8 @@ class OfflineTtsVitsModel::Impl {
     if (comment.find("icefall") != std::string::npos) {
       meta_data_.is_icefall = true;
     }
+
+    LogMetadata();
   }
 
   Ort::Value RunVitsPiperOrCoqui(Ort::Value x, int64_t sid, float speed) {

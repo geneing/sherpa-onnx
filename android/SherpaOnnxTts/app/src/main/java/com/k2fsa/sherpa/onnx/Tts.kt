@@ -89,13 +89,12 @@ class OfflineTts(
         Log.d("SherpaOnnx", "normText: $normText")
         val tokenIds = convertTextToTokenIds(ptr, normText, "en-us")
 
-        for( tokenVector in tokenIds ) {
-            Log.d("SherpaOnnx", "tokenVector size: $tokenVector.size")
-            for( v in tokenVector ) {
-                Log.d("SherpaOnnx", "tokenIds: $v")
-            }
-        }
-
+        // for( tokenVector in tokenIds ) {
+        //     Log.d("SherpaOnnx", "tokenVector size: $tokenVector.size")
+        //     for( v in tokenVector ) {
+        //         Log.d("SherpaOnnx", "tokenIds: $v")
+        //     }
+        // }
 
         return GeneratedAudio(
             samples = floatArrayOf(0.0f) as FloatArray,
