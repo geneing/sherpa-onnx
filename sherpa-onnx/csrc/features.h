@@ -18,7 +18,10 @@ struct FeatureExtractorConfig {
   // the sampling rate of the input waveform, we will do resampling inside.
   int32_t sampling_rate = 16000;
 
-  // Feature dimension
+  // num_mel_bins
+  //
+  // Note: for mfcc, this value is also for num_mel_bins.
+  // The actual feature dimension is actuall num_ceps
   int32_t feature_dim = 80;
 
   // minimal frequency for Mel-filterbank, in Hz
@@ -54,6 +57,7 @@ struct FeatureExtractorConfig {
   float frame_length_ms = 25.0f;  // in milliseconds.
   bool is_librosa = false;
   bool remove_dc_offset = true;       // Subtract mean of wave before FFT.
+  float preemph_coeff = 0.97f;        // Preemphasis coefficient.
   std::string window_type = "povey";  // e.g. Hamming window
 
   // For models from NeMo
@@ -68,6 +72,12 @@ struct FeatureExtractorConfig {
   // https://github.com/NVIDIA/NeMo/blob/main/nemo/collections/asr/parts/preprocessing/features.py#L59
   // for details
   std::string nemo_normalize_type;
+
+  // for MFCC
+  int32_t num_ceps = 13;
+  bool use_energy = true;
+
+  bool is_mfcc = false;
 
   std::string ToString() const;
 
@@ -110,7 +120,7 @@ class FeatureExtractor {
    * @param frame_index  The starting frame index
    * @param n  Number of frames to get.
    * @return Return a 2-D tensor of shape (n, feature_dim).
-   *         which is flattened into a 1-D vector (flattened in in row major)
+   *         which is flattened into a 1-D vector (flattened in row major)
    */
   std::vector<float> GetFrames(int32_t frame_index, int32_t n) const;
 

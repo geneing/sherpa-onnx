@@ -53,9 +53,9 @@ static OnlineRecognizerResult Convert(const OnlineParaformerDecoderResult &src,
         mergeable = false;
 
         if (i > 0) {
-          const uint8_t *p = reinterpret_cast<const uint8_t *>(
-              sym_table[src.tokens[i - 1]].c_str());
-          if (p[0] < 0x80) {
+          const uint8_t p = reinterpret_cast<const uint8_t *>(
+              sym_table[src.tokens[i - 1]].c_str())[0];
+          if (p < 0x80) {
             // put a space between ascii and non-ascii
             text.append(" ");
           }
@@ -96,10 +96,17 @@ static void Scale(const float *x, int32_t n, float scale, float *y) {
 class OnlineRecognizerParaformerImpl : public OnlineRecognizerImpl {
  public:
   explicit OnlineRecognizerParaformerImpl(const OnlineRecognizerConfig &config)
-      : config_(config),
+      : OnlineRecognizerImpl(config),
+        config_(config),
         model_(config.model_config),
-        sym_(config.model_config.tokens),
         endpoint_(config_.endpoint_config) {
+    if (!config.model_config.tokens_buf.empty()) {
+      sym_ = SymbolTable(config.model_config.tokens_buf, false);
+    } else {
+      /// assuming tokens_buf and tokens are guaranteed not being both empty
+      sym_ = SymbolTable(config.model_config.tokens, true);
+    }
+
     if (config.decoding_method != "greedy_search") {
       SHERPA_ONNX_LOGE(
           "Unsupported decoding method: %s. Support only greedy_search at "
@@ -113,10 +120,11 @@ class OnlineRecognizerParaformerImpl : public OnlineRecognizerImpl {
     config_.feat_config.normalize_samples = false;
   }
 
-#if __ANDROID_API__ >= 9
-  explicit OnlineRecognizerParaformerImpl(AAssetManager *mgr,
+  template <typename Manager>
+  explicit OnlineRecognizerParaformerImpl(Manager *mgr,
                                           const OnlineRecognizerConfig &config)
-      : config_(config),
+      : OnlineRecognizerImpl(mgr, config),
+        config_(config),
         model_(mgr, config.model_config),
         sym_(mgr, config.model_config.tokens),
         endpoint_(config_.endpoint_config) {
@@ -130,7 +138,7 @@ class OnlineRecognizerParaformerImpl : public OnlineRecognizerImpl {
     // [-32768, 32767], so we set normalize_samples to false
     config_.feat_config.normalize_samples = false;
   }
-#endif
+
   OnlineRecognizerParaformerImpl(const OnlineRecognizerParaformerImpl &) =
       delete;
 
@@ -160,7 +168,9 @@ class OnlineRecognizerParaformerImpl : public OnlineRecognizerImpl {
   OnlineRecognizerResult GetResult(OnlineStream *s) const override {
     auto decoder_result = s->GetParaformerResult();
 
-    return Convert(decoder_result, sym_);
+    auto r = Convert(decoder_result, sym_);
+    r.text = ApplyInverseTextNormalization(r.text);
+    return r;
   }
 
   bool IsEndpoint(OnlineStream *s) const override {

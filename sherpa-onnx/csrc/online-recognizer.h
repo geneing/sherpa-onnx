@@ -9,11 +9,6 @@
 #include <string>
 #include <vector>
 
-#if __ANDROID_API__ >= 9
-#include "android/asset_manager.h"
-#include "android/asset_manager_jni.h"
-#endif
-
 #include "sherpa-onnx/csrc/endpoint.h"
 #include "sherpa-onnx/csrc/features.h"
 #include "sherpa-onnx/csrc/online-ctc-fst-decoder-config.h"
@@ -46,6 +41,8 @@ struct OnlineRecognizerResult {
                                 //
   /// log-domain scores from "hot-phrase" contextual boosting
   std::vector<float> context_scores;
+
+  std::vector<int32_t> words;
 
   /// ID of this segment
   /// When an endpoint is detected, it is incremented
@@ -91,28 +88,35 @@ struct OnlineRecognizerConfig {
   int32_t max_active_paths = 4;
 
   /// used only for modified_beam_search
-  float hotwords_score = 1.5;
   std::string hotwords_file;
+  float hotwords_score = 1.5;
 
   float blank_penalty = 0.0;
 
   float temperature_scale = 2.0;
 
+  // If there are multiple rules, they are applied from left to right.
+  std::string rule_fsts;
+
+  // If there are multiple FST archives, they are applied from left to right.
+  std::string rule_fars;
+
+  /// used only for modified_beam_search, if hotwords_buf is non-empty,
+  /// the hotwords will be loaded from the buffered string instead of from the
+  /// "hotwords_file"
+  std::string hotwords_buf;
+
   OnlineRecognizerConfig() = default;
 
   OnlineRecognizerConfig(
       const FeatureExtractorConfig &feat_config,
-      const OnlineModelConfig &model_config,
-      const OnlineLMConfig &lm_config,
+      const OnlineModelConfig &model_config, const OnlineLMConfig &lm_config,
       const EndpointConfig &endpoint_config,
       const OnlineCtcFstDecoderConfig &ctc_fst_decoder_config,
-      bool enable_endpoint,
-      const std::string &decoding_method,
-      int32_t max_active_paths,
-      const std::string &hotwords_file,
-      float hotwords_score,
-      float blank_penalty,
-      float temperature_scale)
+      bool enable_endpoint, const std::string &decoding_method,
+      int32_t max_active_paths, const std::string &hotwords_file,
+      float hotwords_score, float blank_penalty, float temperature_scale,
+      const std::string &rule_fsts, const std::string &rule_fars)
       : feat_config(feat_config),
         model_config(model_config),
         lm_config(lm_config),
@@ -124,7 +128,9 @@ struct OnlineRecognizerConfig {
         hotwords_file(hotwords_file),
         hotwords_score(hotwords_score),
         blank_penalty(blank_penalty),
-        temperature_scale(temperature_scale) {}
+        temperature_scale(temperature_scale),
+        rule_fsts(rule_fsts),
+        rule_fars(rule_fars) {}
 
   void Register(ParseOptions *po);
   bool Validate() const;
@@ -138,9 +144,8 @@ class OnlineRecognizer {
  public:
   explicit OnlineRecognizer(const OnlineRecognizerConfig &config);
 
-#if __ANDROID_API__ >= 9
-  OnlineRecognizer(AAssetManager *mgr, const OnlineRecognizerConfig &config);
-#endif
+  template <typename Manager>
+  OnlineRecognizer(Manager *mgr, const OnlineRecognizerConfig &config);
 
   ~OnlineRecognizer();
 

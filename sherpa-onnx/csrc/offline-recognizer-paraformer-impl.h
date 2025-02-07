@@ -11,11 +11,6 @@
 #include <utility>
 #include <vector>
 
-#if __ANDROID_API__ >= 9
-#include "android/asset_manager.h"
-#include "android/asset_manager_jni.h"
-#endif
-
 #include "sherpa-onnx/csrc/offline-model-config.h"
 #include "sherpa-onnx/csrc/offline-paraformer-decoder.h"
 #include "sherpa-onnx/csrc/offline-paraformer-greedy-search-decoder.h"
@@ -59,9 +54,9 @@ static OfflineRecognitionResult Convert(
         mergeable = false;
 
         if (i > 0) {
-          const uint8_t *p = reinterpret_cast<const uint8_t *>(
-              sym_table[src.tokens[i - 1]].c_str());
-          if (p[0] < 0x80) {
+          const uint8_t p = reinterpret_cast<const uint8_t *>(
+              sym_table[src.tokens[i - 1]].c_str())[0];
+          if (p < 0x80) {
             // put a space between ascii and non-ascii
             text.append(" ");
           }
@@ -89,7 +84,8 @@ class OfflineRecognizerParaformerImpl : public OfflineRecognizerImpl {
  public:
   explicit OfflineRecognizerParaformerImpl(
       const OfflineRecognizerConfig &config)
-      : config_(config),
+      : OfflineRecognizerImpl(config),
+        config_(config),
         symbol_table_(config_.model_config.tokens),
         model_(std::make_unique<OfflineParaformerModel>(config.model_config)) {
     if (config.decoding_method == "greedy_search") {
@@ -101,15 +97,14 @@ class OfflineRecognizerParaformerImpl : public OfflineRecognizerImpl {
       exit(-1);
     }
 
-    // Paraformer models assume input samples are in the range
-    // [-32768, 32767], so we set normalize_samples to false
-    config_.feat_config.normalize_samples = false;
+    InitFeatConfig();
   }
 
-#if __ANDROID_API__ >= 9
-  OfflineRecognizerParaformerImpl(AAssetManager *mgr,
+  template <typename Manager>
+  OfflineRecognizerParaformerImpl(Manager *mgr,
                                   const OfflineRecognizerConfig &config)
-      : config_(config),
+      : OfflineRecognizerImpl(mgr, config),
+        config_(config),
         symbol_table_(mgr, config_.model_config.tokens),
         model_(std::make_unique<OfflineParaformerModel>(mgr,
                                                         config.model_config)) {
@@ -122,11 +117,8 @@ class OfflineRecognizerParaformerImpl : public OfflineRecognizerImpl {
       exit(-1);
     }
 
-    // Paraformer models assume input samples are in the range
-    // [-32768, 32767], so we set normalize_samples to false
-    config_.feat_config.normalize_samples = false;
+    InitFeatConfig();
   }
-#endif
 
   std::unique_ptr<OfflineStream> CreateStream() const override {
     return std::make_unique<OfflineStream>(config_.feat_config);
@@ -204,11 +196,23 @@ class OfflineRecognizerParaformerImpl : public OfflineRecognizerImpl {
 
     for (int32_t i = 0; i != n; ++i) {
       auto r = Convert(results[i], symbol_table_);
+      r.text = ApplyInverseTextNormalization(std::move(r.text));
       ss[i]->SetResult(r);
     }
   }
 
+  OfflineRecognizerConfig GetConfig() const override { return config_; }
+
  private:
+  void InitFeatConfig() {
+    // Paraformer models assume input samples are in the range
+    // [-32768, 32767], so we set normalize_samples to false
+    config_.feat_config.normalize_samples = false;
+    config_.feat_config.window_type = "hamming";
+    config_.feat_config.high_freq = 0;
+    config_.feat_config.snip_edges = true;
+  }
+
   std::vector<float> ApplyLFR(const std::vector<float> &in) const {
     int32_t lfr_window_size = model_->LfrWindowSize();
     int32_t lfr_window_shift = model_->LfrWindowShift();

@@ -4,9 +4,8 @@
 
 #include "sherpa-onnx/csrc/online-conformer-transducer-model.h"
 
-#include <assert.h>
-
 #include <algorithm>
+#include <cassert>
 #include <memory>
 #include <sstream>
 #include <string>
@@ -16,6 +15,10 @@
 #if __ANDROID_API__ >= 9
 #include "android/asset_manager.h"
 #include "android/asset_manager_jni.h"
+#endif
+
+#if __OHOS__
+#include "rawfile/raw_file_manager.h"
 #endif
 
 #include "onnxruntime_cxx_api.h"  // NOLINT
@@ -31,7 +34,7 @@ namespace sherpa_onnx {
 
 OnlineConformerTransducerModel::OnlineConformerTransducerModel(
     const OnlineModelConfig &config)
-    : env_(ORT_LOGGING_LEVEL_WARNING),
+    : env_(ORT_LOGGING_LEVEL_ERROR),
       config_(config),
       sess_opts_(GetSessionOptions(config)),
       allocator_{} {
@@ -51,10 +54,10 @@ OnlineConformerTransducerModel::OnlineConformerTransducerModel(
   }
 }
 
-#if __ANDROID_API__ >= 9
+template <typename Manager>
 OnlineConformerTransducerModel::OnlineConformerTransducerModel(
-    AAssetManager *mgr, const OnlineModelConfig &config)
-    : env_(ORT_LOGGING_LEVEL_WARNING),
+    Manager *mgr, const OnlineModelConfig &config)
+    : env_(ORT_LOGGING_LEVEL_ERROR),
       config_(config),
       sess_opts_(GetSessionOptions(config)),
       allocator_{} {
@@ -73,7 +76,6 @@ OnlineConformerTransducerModel::OnlineConformerTransducerModel(
     InitJoiner(buf.data(), buf.size());
   }
 }
-#endif
 
 void OnlineConformerTransducerModel::InitEncoder(void *model_data,
                                                  size_t model_data_length) {
@@ -92,7 +94,11 @@ void OnlineConformerTransducerModel::InitEncoder(void *model_data,
     std::ostringstream os;
     os << "---encoder---\n";
     PrintModelMetadata(os, meta_data);
+#if __OHOS__
+    SHERPA_ONNX_LOGE("%{public}s", os.str().c_str());
+#else
     SHERPA_ONNX_LOGE("%s", os.str().c_str());
+#endif
   }
 
   Ort::AllocatorWithDefaultOptions allocator;  // used in the macro below
@@ -122,7 +128,11 @@ void OnlineConformerTransducerModel::InitDecoder(void *model_data,
     std::ostringstream os;
     os << "---decoder---\n";
     PrintModelMetadata(os, meta_data);
+#if __OHOS__
+    SHERPA_ONNX_LOGE("%{public}s", os.str().c_str());
+#else
     SHERPA_ONNX_LOGE("%s", os.str().c_str());
+#endif
   }
 
   Ort::AllocatorWithDefaultOptions allocator;  // used in the macro below
@@ -164,8 +174,11 @@ std::vector<Ort::Value> OnlineConformerTransducerModel::StackStates(
     conv_vec[i] = &states[i][1];
   }
 
-  Ort::Value attn = Cat(allocator_, attn_vec, 2);
-  Ort::Value conv = Cat(allocator_, conv_vec, 2);
+  auto allocator =
+      const_cast<OnlineConformerTransducerModel *>(this)->allocator_;
+
+  Ort::Value attn = Cat(allocator, attn_vec, 2);
+  Ort::Value conv = Cat(allocator, conv_vec, 2);
 
   std::vector<Ort::Value> ans;
   ans.reserve(2);
@@ -184,8 +197,11 @@ OnlineConformerTransducerModel::UnStackStates(
 
   std::vector<std::vector<Ort::Value>> ans(batch_size);
 
-  std::vector<Ort::Value> attn_vec = Unbind(allocator_, &states[0], 2);
-  std::vector<Ort::Value> conv_vec = Unbind(allocator_, &states[1], 2);
+  auto allocator =
+      const_cast<OnlineConformerTransducerModel *>(this)->allocator_;
+
+  std::vector<Ort::Value> attn_vec = Unbind(allocator, &states[0], 2);
+  std::vector<Ort::Value> conv_vec = Unbind(allocator, &states[1], 2);
 
   assert(attn_vec.size() == batch_size);
   assert(conv_vec.size() == batch_size);
@@ -267,5 +283,15 @@ Ort::Value OnlineConformerTransducerModel::RunJoiner(Ort::Value encoder_out,
 
   return std::move(logit[0]);
 }
+
+#if __ANDROID_API__ >= 9
+template OnlineConformerTransducerModel::OnlineConformerTransducerModel(
+    AAssetManager *mgr, const OnlineModelConfig &config);
+#endif
+
+#if __OHOS__
+template OnlineConformerTransducerModel::OnlineConformerTransducerModel(
+    NativeResourceManager *mgr, const OnlineModelConfig &config);
+#endif
 
 }  // namespace sherpa_onnx

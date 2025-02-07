@@ -20,10 +20,16 @@ CircularBuffer::CircularBuffer(int32_t capacity) {
 }
 
 void CircularBuffer::Resize(int32_t new_capacity) {
-  int32_t capacity = buffer_.size();
+  int32_t capacity = static_cast<int32_t>(buffer_.size());
   if (new_capacity <= capacity) {
+#if __OHOS__
+    SHERPA_ONNX_LOGE(
+        "new_capacity (%{public}d) <= original capacity (%{public}d). Skip it.",
+        new_capacity, capacity);
+#else
     SHERPA_ONNX_LOGE("new_capacity (%d) <= original capacity (%d). Skip it.",
                      new_capacity, capacity);
+#endif
     return;
   }
 
@@ -62,7 +68,6 @@ void CircularBuffer::Resize(int32_t new_capacity) {
                 new_buffer.begin() + dest);
     } else {
       int32_t first_part = new_capacity - dest;
-      int32_t second_part = part1_size - first_part;
       std::copy(buffer_.begin() + start, buffer_.begin() + start + first_part,
                 new_buffer.begin() + dest);
 
@@ -87,15 +92,25 @@ void CircularBuffer::Resize(int32_t new_capacity) {
 }
 
 void CircularBuffer::Push(const float *p, int32_t n) {
-  int32_t capacity = buffer_.size();
+  int32_t capacity = static_cast<int32_t>(buffer_.size());
   int32_t size = Size();
   if (n + size > capacity) {
     int32_t new_capacity = std::max(capacity * 2, n + size);
+#if __OHOS__
+    SHERPA_ONNX_LOGE(
+        "Overflow! n: %{public}d, size: %{public}d, n+size: %{public}d, "
+        "capacity: %{public}d. Increase "
+        "capacity to: %{public}d. (Original data is copied. No data loss!)",
+        n, size, n + size, capacity, new_capacity);
+#else
     SHERPA_ONNX_LOGE(
         "Overflow! n: %d, size: %d, n+size: %d, capacity: %d. Increase "
-        "capacity to: %d",
+        "capacity to: %d. (Original data is copied. No data loss!)",
         n, size, n + size, capacity, new_capacity);
+#endif
     Resize(new_capacity);
+
+    capacity = new_capacity;
   }
 
   int32_t start = tail_ % capacity;
@@ -127,7 +142,7 @@ std::vector<float> CircularBuffer::Get(int32_t start_index, int32_t n) const {
     return {};
   }
 
-  int32_t capacity = buffer_.size();
+  int32_t capacity = static_cast<int32_t>(buffer_.size());
 
   if (start_index - head_ + n > size) {
     SHERPA_ONNX_LOGE("Invalid start_index: %d and n: %d. head_: %d, size: %d",

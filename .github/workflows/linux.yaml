@@ -5,7 +5,7 @@ on:
     branches:
       - master
     tags:
-      - '*'
+      - 'v[0-9]+.[0-9]+.[0-9]+*'
     paths:
       - '.github/workflows/linux.yaml'
       - '.github/scripts/test-kws.sh'
@@ -17,7 +17,10 @@ on:
       - '.github/scripts/test-offline-tts.sh'
       - '.github/scripts/test-audio-tagging.sh'
       - '.github/scripts/test-offline-punctuation.sh'
-      - 'CMakeLists.txt'
+      - '.github/scripts/test-online-punctuation.sh'
+      - '.github/scripts/test-speaker-diarization.sh'
+      - '.github/scripts/test-c-api.sh'
+      - '.github/scripts/test-cxx-api.sh'
       - 'cmake/**'
       - 'sherpa-onnx/csrc/*'
       - 'sherpa-onnx/c-api/*'
@@ -36,7 +39,10 @@ on:
       - '.github/scripts/test-offline-tts.sh'
       - '.github/scripts/test-audio-tagging.sh'
       - '.github/scripts/test-offline-punctuation.sh'
-      - 'CMakeLists.txt'
+      - '.github/scripts/test-online-punctuation.sh'
+      - '.github/scripts/test-speaker-diarization.sh'
+      - '.github/scripts/test-c-api.sh'
+      - '.github/scripts/test-cxx-api.sh'
       - 'cmake/**'
       - 'sherpa-onnx/csrc/*'
       - 'sherpa-onnx/c-api/*'
@@ -88,7 +94,7 @@ jobs:
 
               cd /home/runner/work/sherpa-onnx/sherpa-onnx
 
-              git clone --depth 1 https://github.com/alsa-project/alsa-lib
+              git clone --depth 1 --branch v1.2.12 https://github.com/alsa-project/alsa-lib
               pushd alsa-lib
               ./gitcompile
               popd
@@ -99,13 +105,24 @@ jobs:
               mkdir build
               cd build
 
-              cmake -DSHERPA_ONNX_ENABLE_TTS=${{ matrix.with_tts }} -D CMAKE_BUILD_TYPE=${{ matrix.build_type }} -D BUILD_SHARED_LIBS=${{ matrix.shared_lib }} -DCMAKE_INSTALL_PREFIX=./install ..
+              cmake \
+                -D SHERPA_ONNX_ENABLE_TTS=${{ matrix.with_tts }} \
+                -D CMAKE_BUILD_TYPE=${{ matrix.build_type }} \
+                -D BUILD_SHARED_LIBS=${{ matrix.shared_lib }} \
+                -D CMAKE_INSTALL_PREFIX=./install \
+                ..
 
               make -j2
               make install
 
               ls -lh lib
               ls -lh bin
+
+              echo "----"
+              ls -lh install/lib
+
+              echo "----"
+              ls -lh install/bin
 
       - name: Display dependencies of sherpa-onnx for linux
         shell: bash
@@ -130,6 +147,87 @@ jobs:
           name: release-${{ matrix.build_type }}-with-shared-lib-${{ matrix.shared_lib }}-with-tts-${{ matrix.with_tts }}
           path: install/*
 
+      - name: Test offline TTS
+        if: matrix.with_tts == 'ON'
+        shell: bash
+        run: |
+          du -h -d1 .
+          export PATH=$PWD/build/bin:$PATH
+          export EXE=sherpa-onnx-offline-tts
+
+          .github/scripts/test-offline-tts.sh
+          du -h -d1 .
+
+      - uses: actions/upload-artifact@v4
+        if: matrix.with_tts == 'ON'
+        with:
+          name: tts-generated-test-files-${{ matrix.build_type }}-${{ matrix.shared_lib }}-with-tts-${{ matrix.with_tts }}
+          path: tts
+
+      - name: Test offline Moonshine
+        if: matrix.build_type != 'Debug'
+        shell: bash
+        run: |
+          du -h -d1 .
+          export PATH=$PWD/build/bin:$PATH
+          export EXE=sherpa-onnx-offline
+
+          readelf -d build/bin/sherpa-onnx-offline
+
+          .github/scripts/test-offline-moonshine.sh
+          du -h -d1 .
+
+      - name: Test offline CTC
+        shell: bash
+        run: |
+          du -h -d1 .
+          export PATH=$PWD/build/bin:$PATH
+          export EXE=sherpa-onnx-offline
+
+          .github/scripts/test-offline-ctc.sh
+          du -h -d1 .
+
+      - name: Test C++ API
+        shell: bash
+        run: |
+          du -h -d1 .
+          export PATH=$PWD/build/bin:$PATH
+          export CXX_STREAMING_ZIPFORMER_EXE=streaming-zipformer-cxx-api
+          export CXX_WHISPER_EXE=whisper-cxx-api
+          export CXX_SENSE_VOICE_EXE=sense-voice-cxx-api
+
+          .github/scripts/test-cxx-api.sh
+          du -h -d1 .
+
+      - name: Test offline speaker diarization
+        shell: bash
+        run: |
+          du -h -d1 .
+          export PATH=$PWD/build/bin:$PATH
+          export EXE=sherpa-onnx-offline-speaker-diarization
+
+          .github/scripts/test-speaker-diarization.sh
+
+      - name: Test offline transducer
+        shell: bash
+        run: |
+          du -h -d1 .
+          export PATH=$PWD/build/bin:$PATH
+          export EXE=sherpa-onnx-offline
+
+          .github/scripts/test-offline-transducer.sh
+          du -h -d1 .
+
+      - name: Test online punctuation
+        shell: bash
+        run: |
+          du -h -d1 .
+          export PATH=$PWD/build/bin:$PATH
+          export EXE=sherpa-onnx-online-punctuation
+
+          .github/scripts/test-online-punctuation.sh
+          du -h -d1 .
+
       - name: Test online transducer
         shell: bash
         run: |
@@ -150,16 +248,6 @@ jobs:
           .github/scripts/test-online-transducer.sh
           du -h -d1 .
 
-      - name: Test offline CTC
-        shell: bash
-        run: |
-          du -h -d1 .
-          export PATH=$PWD/build/bin:$PATH
-          export EXE=sherpa-onnx-offline
-
-          .github/scripts/test-offline-ctc.sh
-          du -h -d1 .
-
       - name: Test spoken language identification (C++ API)
         shell: bash
         run: |
@@ -178,16 +266,6 @@ jobs:
           export EXE=sherpa-onnx
 
           .github/scripts/test-online-ctc.sh
-          du -h -d1 .
-
-      - name: Test offline transducer
-        shell: bash
-        run: |
-          du -h -d1 .
-          export PATH=$PWD/build/bin:$PATH
-          export EXE=sherpa-onnx-offline
-
-          .github/scripts/test-offline-transducer.sh
           du -h -d1 .
 
       - name: Test C API
@@ -246,16 +324,7 @@ jobs:
           .github/scripts/test-offline-whisper.sh
           du -h -d1 .
 
-      - name: Test offline TTS
-        if: matrix.with_tts == 'ON'
-        shell: bash
-        run: |
-          du -h -d1 .
-          export PATH=$PWD/build/bin:$PATH
-          export EXE=sherpa-onnx-offline-tts
 
-          .github/scripts/test-offline-tts.sh
-          du -h -d1 .
 
       - name: Test online paraformer
         shell: bash
@@ -296,41 +365,6 @@ jobs:
           tar cjvf ${dst}.tar.bz2 $dst
           du -h -d1 .
 
-      - name: Publish to huggingface
-        if: (github.repository_owner == 'csukuangfj' || github.repository_owner == 'k2-fsa') && (github.event_name == 'push' || github.event_name == 'workflow_dispatch') && matrix.build_type == 'Release'
-        env:
-          HF_TOKEN: ${{ secrets.HF_TOKEN }}
-        uses: nick-fields/retry@v3
-        with:
-          max_attempts: 20
-          timeout_seconds: 200
-          shell: bash
-          command: |
-            du -h -d1 .
-            git config --global user.email "csukuangfj@gmail.com"
-            git config --global user.name "Fangjun Kuang"
-
-            rm -rf huggingface
-            export GIT_CLONE_PROTECTION_ACTIVE=false
-            GIT_LFS_SKIP_SMUDGE=1 git clone https://huggingface.co/csukuangfj/sherpa-onnx-libs huggingface
-            du -h -d1 .
-
-            cd huggingface
-            git lfs pull
-            mkdir -p linux-x64
-
-            cp -v ../sherpa-onnx-*.tar.bz2 ./linux-x64
-
-            git status
-            git lfs track "*.bz2"
-
-            git add .
-
-            git commit -m "upload sherpa-onnx-${SHERPA_ONNX_VERSION}"
-
-            git push https://csukuangfj:$HF_TOKEN@huggingface.co/csukuangfj/sherpa-onnx-libs main
-            du -h -d1 .
-
       - name: Release pre-compiled binaries and libs for linux x64
         if: (github.repository_owner == 'csukuangfj' || github.repository_owner == 'k2-fsa') && github.event_name == 'push' && contains(github.ref, 'refs/tags/') && matrix.build_type == 'Release'
         uses: svenstaro/upload-release-action@v2
@@ -339,8 +373,4 @@ jobs:
           overwrite: true
           file: sherpa-onnx-*.tar.bz2
 
-      - uses: actions/upload-artifact@v4
-        with:
-          name: tts-generated-test-files-${{ matrix.build_type }}-${{ matrix.shared_lib }}-with-tts-${{ matrix.with_tts }}
-          path: tts
 

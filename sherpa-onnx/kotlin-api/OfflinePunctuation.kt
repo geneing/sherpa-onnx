@@ -3,7 +3,7 @@ package com.k2fsa.sherpa.onnx
 import android.content.res.AssetManager
 
 data class OfflinePunctuationModelConfig(
-    var ctTransformer: String,
+    var ctTransformer: String = "",
     var numThreads: Int = 1,
     var debug: Boolean = false,
     var provider: String = "cpu",
@@ -18,7 +18,7 @@ class OfflinePunctuation(
     assetManager: AssetManager? = null,
     config: OfflinePunctuationConfig,
 ) {
-    private val ptr: Long
+    private var ptr: Long
 
     init {
         ptr = if (assetManager != null) {
@@ -29,7 +29,10 @@ class OfflinePunctuation(
     }
 
     protected fun finalize() {
-        delete(ptr)
+        if (ptr != 0L) {
+            delete(ptr)
+            ptr = 0
+        }
     }
 
     fun release() = finalize()

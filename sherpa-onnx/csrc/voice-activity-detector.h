@@ -7,11 +7,6 @@
 #include <memory>
 #include <vector>
 
-#if __ANDROID_API__ >= 9
-#include "android/asset_manager.h"
-#include "android/asset_manager_jni.h"
-#endif
-
 #include "sherpa-onnx/csrc/vad-model-config.h"
 
 namespace sherpa_onnx {
@@ -26,10 +21,9 @@ class VoiceActivityDetector {
   explicit VoiceActivityDetector(const VadModelConfig &config,
                                  float buffer_size_in_seconds = 60);
 
-#if __ANDROID_API__ >= 9
-  VoiceActivityDetector(AAssetManager *mgr, const VadModelConfig &config,
+  template <typename Manager>
+  VoiceActivityDetector(Manager *mgr, const VadModelConfig &config,
                         float buffer_size_in_seconds = 60);
-#endif
 
   ~VoiceActivityDetector();
 
@@ -41,7 +35,11 @@ class VoiceActivityDetector {
 
   bool IsSpeechDetected() const;
 
-  void Reset();
+  void Reset() const;
+
+  // At the end of the utterance, you can invoke this method so that
+  // the last speech segment can be detected.
+  void Flush() const;
 
   const VadModelConfig &GetConfig() const;
 

@@ -22,6 +22,10 @@
 #include "android/asset_manager_jni.h"
 #endif
 
+#if __OHOS__
+#include "rawfile/raw_file_manager.h"
+#endif
+
 #include "onnxruntime_cxx_api.h"  // NOLINT
 
 namespace sherpa_onnx {
@@ -59,6 +63,9 @@ void GetOutputNames(Ort::Session *sess, std::vector<std::string> *output_names,
 Ort::Value GetEncoderOutFrame(OrtAllocator *allocator, Ort::Value *encoder_out,
                               int32_t t);
 
+std::string LookupCustomModelMetaData(const Ort::ModelMetadata &meta_data,
+                                      const char *key, OrtAllocator *allocator);
+
 void PrintModelMetadata(std::ostream &os,
                         const Ort::ModelMetadata &meta_data);  // NOLINT
 
@@ -68,18 +75,24 @@ Ort::Value Clone(OrtAllocator *allocator, const Ort::Value *v);
 // Return a shallow copy
 Ort::Value View(Ort::Value *v);
 
+float ComputeSum(const Ort::Value *v, int32_t n = -1);
+float ComputeMean(const Ort::Value *v, int32_t n = -1);
+
 // Print a 1-D tensor to stderr
-void Print1D(Ort::Value *v);
+template <typename T = float>
+void Print1D(const Ort::Value *v);
 
 // Print a 2-D tensor to stderr
 template <typename T = float>
-void Print2D(Ort::Value *v);
+void Print2D(const Ort::Value *v);
 
 // Print a 3-D tensor to stderr
-void Print3D(Ort::Value *v);
+void Print3D(const Ort::Value *v);
 
 // Print a 4-D tensor to stderr
-void Print4D(Ort::Value *v);
+void Print4D(const Ort::Value *v);
+
+void PrintShape(const Ort::Value *v);
 
 template <typename T = float>
 void Fill(Ort::Value *tensor, T value) {
@@ -92,6 +105,11 @@ std::vector<char> ReadFile(const std::string &filename);
 
 #if __ANDROID_API__ >= 9
 std::vector<char> ReadFile(AAssetManager *mgr, const std::string &filename);
+#endif
+
+#if __OHOS__
+std::vector<char> ReadFile(NativeResourceManager *mgr,
+                           const std::string &filename);
 #endif
 
 // TODO(fangjun): Document it
@@ -110,9 +128,9 @@ struct CopyableOrtValue {
 
   CopyableOrtValue &operator=(const CopyableOrtValue &other);
 
-  CopyableOrtValue(CopyableOrtValue &&other);
+  CopyableOrtValue(CopyableOrtValue &&other) noexcept;
 
-  CopyableOrtValue &operator=(CopyableOrtValue &&other);
+  CopyableOrtValue &operator=(CopyableOrtValue &&other) noexcept;
 };
 
 std::vector<CopyableOrtValue> Convert(std::vector<Ort::Value> values);

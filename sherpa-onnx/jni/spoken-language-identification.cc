@@ -62,6 +62,7 @@ Java_com_k2fsa_sherpa_onnx_SpokenLanguageIdentification_newFromAsset(
   AAssetManager *mgr = AAssetManager_fromJava(env, asset_manager);
   if (!mgr) {
     SHERPA_ONNX_LOGE("Failed to get asset manager: %p", mgr);
+    return 0;
   }
 #endif
 
@@ -101,7 +102,7 @@ Java_com_k2fsa_sherpa_onnx_SpokenLanguageIdentification_newFromFile(
 
 SHERPA_ONNX_EXTERN_C
 JNIEXPORT void JNICALL
-Java_com_k2fsa_sherpa_onnx_SpokenLanguageIdentification_delete(JNIEnv *env,
+Java_com_k2fsa_sherpa_onnx_SpokenLanguageIdentification_delete(JNIEnv * /*env*/,
                                                                jobject /*obj*/,
                                                                jlong ptr) {
   delete reinterpret_cast<sherpa_onnx::SpokenLanguageIdentification *>(ptr);
@@ -110,7 +111,7 @@ Java_com_k2fsa_sherpa_onnx_SpokenLanguageIdentification_delete(JNIEnv *env,
 SHERPA_ONNX_EXTERN_C
 JNIEXPORT jlong JNICALL
 Java_com_k2fsa_sherpa_onnx_SpokenLanguageIdentification_createStream(
-    JNIEnv *env, jobject /*obj*/, jlong ptr) {
+    JNIEnv * /*env*/, jobject /*obj*/, jlong ptr) {
   auto slid =
       reinterpret_cast<sherpa_onnx::SpokenLanguageIdentification *>(ptr);
   std::unique_ptr<sherpa_onnx::OfflineStream> s = slid->CreateStream();

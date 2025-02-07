@@ -4,10 +4,8 @@
 
 #include "sherpa-onnx/csrc/online-zipformer2-ctc-model.h"
 
-#include <assert.h>
-#include <math.h>
-
 #include <algorithm>
+#include <cassert>
 #include <cmath>
 #include <numeric>
 #include <string>
@@ -15,6 +13,10 @@
 #if __ANDROID_API__ >= 9
 #include "android/asset_manager.h"
 #include "android/asset_manager_jni.h"
+#endif
+
+#if __OHOS__
+#include "rawfile/raw_file_manager.h"
 #endif
 
 #include "sherpa-onnx/csrc/cat.h"
@@ -39,10 +41,10 @@ class OnlineZipformer2CtcModel::Impl {
     }
   }
 
-#if __ANDROID_API__ >= 9
-  Impl(AAssetManager *mgr, const OnlineModelConfig &config)
+  template <typename Manager>
+  Impl(Manager *mgr, const OnlineModelConfig &config)
       : config_(config),
-        env_(ORT_LOGGING_LEVEL_WARNING),
+        env_(ORT_LOGGING_LEVEL_ERROR),
         sess_opts_(GetSessionOptions(config)),
         allocator_{} {
     {
@@ -50,7 +52,6 @@ class OnlineZipformer2CtcModel::Impl {
       Init(buf.data(), buf.size());
     }
   }
-#endif
 
   std::vector<Ort::Value> Forward(Ort::Value features,
                                   std::vector<Ort::Value> states) {
@@ -72,7 +73,7 @@ class OnlineZipformer2CtcModel::Impl {
 
   int32_t ChunkShift() const { return decode_chunk_len_; }
 
-  OrtAllocator *Allocator() const { return allocator_; }
+  OrtAllocator *Allocator() { return allocator_; }
 
   // Return a vector containing 3 tensors
   // - attn_cache
@@ -88,9 +89,8 @@ class OnlineZipformer2CtcModel::Impl {
   }
 
   std::vector<Ort::Value> StackStates(
-      std::vector<std::vector<Ort::Value>> states) const {
+      std::vector<std::vector<Ort::Value>> states) {
     int32_t batch_size = static_cast<int32_t>(states.size());
-    int32_t num_encoders = static_cast<int32_t>(num_encoder_layers_.size());
 
     std::vector<const Ort::Value *> buf(batch_size);
 
@@ -162,13 +162,12 @@ class OnlineZipformer2CtcModel::Impl {
   }
 
   std::vector<std::vector<Ort::Value>> UnStackStates(
-      std::vector<Ort::Value> states) const {
+      std::vector<Ort::Value> states) {
     int32_t m = std::accumulate(num_encoder_layers_.begin(),
                                 num_encoder_layers_.end(), 0);
     assert(states.size() == m * 6 + 2);
 
     int32_t batch_size = states[0].GetTensorTypeAndShapeInfo().GetShape()[1];
-    int32_t num_encoders = num_encoder_layers_.size();
 
     std::vector<std::vector<Ort::Value>> ans;
     ans.resize(batch_size);
@@ -259,7 +258,11 @@ class OnlineZipformer2CtcModel::Impl {
       std::ostringstream os;
       os << "---zipformer2_ctc---\n";
       PrintModelMetadata(os, meta_data);
+#if __OHOS__
+      SHERPA_ONNX_LOGE("%{public}s", os.str().c_str());
+#else
       SHERPA_ONNX_LOGE("%s", os.str().c_str());
+#endif
     }
 
     Ort::AllocatorWithDefaultOptions allocator;  // used in the macro below
@@ -419,11 +422,10 @@ OnlineZipformer2CtcModel::OnlineZipformer2CtcModel(
     const OnlineModelConfig &config)
     : impl_(std::make_unique<Impl>(config)) {}
 
-#if __ANDROID_API__ >= 9
+template <typename Manager>
 OnlineZipformer2CtcModel::OnlineZipformer2CtcModel(
-    AAssetManager *mgr, const OnlineModelConfig &config)
+    Manager *mgr, const OnlineModelConfig &config)
     : impl_(std::make_unique<Impl>(mgr, config)) {}
-#endif
 
 OnlineZipformer2CtcModel::~OnlineZipformer2CtcModel() = default;
 
@@ -461,5 +463,15 @@ std::vector<std::vector<Ort::Value>> OnlineZipformer2CtcModel::UnStackStates(
     std::vector<Ort::Value> states) const {
   return impl_->UnStackStates(std::move(states));
 }
+
+#if __ANDROID_API__ >= 9
+template OnlineZipformer2CtcModel::OnlineZipformer2CtcModel(
+    AAssetManager *mgr, const OnlineModelConfig &config);
+#endif
+
+#if __OHOS__
+template OnlineZipformer2CtcModel::OnlineZipformer2CtcModel(
+    NativeResourceManager *mgr, const OnlineModelConfig &config);
+#endif
 
 }  // namespace sherpa_onnx

@@ -26,15 +26,32 @@ struct OfflineRecognitionResult {
   // For instance, for BPE-based models it consists of a list of BPE tokens.
   std::vector<std::string> tokens;
 
+  std::string lang;
+
+  // emotion target of the audio.
+  std::string emotion;
+
+  // event target of the audio.
+  std::string event;
+
   /// timestamps.size() == tokens.size()
   /// timestamps[i] records the time in seconds when tokens[i] is decoded.
   std::vector<float> timestamps;
 
+  std::vector<int32_t> words;
+
   std::string AsJsonString() const;
 };
 
-struct WhisperTag {};
+struct WhisperTag {
+  int32_t dim = 80;
+};
+
 struct CEDTag {};
+
+// It uses a neural network model, a preprocessor, to convert
+// audio samples to features
+struct MoonshineTag {};
 
 class OfflineStream {
  public:
@@ -43,6 +60,7 @@ class OfflineStream {
 
   explicit OfflineStream(WhisperTag tag);
   explicit OfflineStream(CEDTag tag);
+  explicit OfflineStream(MoonshineTag tag);
   ~OfflineStream();
 
   /**
@@ -59,7 +77,10 @@ class OfflineStream {
   void AcceptWaveform(int32_t sampling_rate, const float *waveform,
                       int32_t n) const;
 
-  /// Return feature dim of this extractor
+  /// Return feature dim of this extractor.
+  ///
+  /// Note: if it is Moonshine, then it returns the number of audio samples
+  /// currently received.
   int32_t FeatureDim() const;
 
   // Get all the feature frames of this stream in a 1-D array, which is

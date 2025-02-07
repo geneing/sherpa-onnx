@@ -9,15 +9,9 @@
 #include <memory>
 #include <regex>  // NOLINT
 #include <string>
+#include <strstream>
 #include <utility>
 #include <vector>
-
-#if __ANDROID_API__ >= 9
-#include <strstream>
-
-#include "android/asset_manager.h"
-#include "android/asset_manager_jni.h"
-#endif
 
 #include "sherpa-onnx/csrc/file-utils.h"
 #include "sherpa-onnx/csrc/keyword-spotter-impl.h"
@@ -66,24 +60,33 @@ class KeywordSpotterTransducerImpl : public KeywordSpotterImpl {
  public:
   explicit KeywordSpotterTransducerImpl(const KeywordSpotterConfig &config)
       : config_(config),
-        model_(OnlineTransducerModel::Create(config.model_config)),
-        sym_(config.model_config.tokens) {
+        model_(OnlineTransducerModel::Create(config.model_config)) {
+    if (!config.model_config.tokens_buf.empty()) {
+      sym_ = SymbolTable(config.model_config.tokens_buf, false);
+    } else {
+      /// assuming tokens_buf and tokens are guaranteed not being both empty
+      sym_ = SymbolTable(config.model_config.tokens, true);
+    }
+
     if (sym_.Contains("<unk>")) {
       unk_id_ = sym_["<unk>"];
     }
 
     model_->SetFeatureDim(config.feat_config.feature_dim);
 
-    InitKeywords();
+    if (config.keywords_buf.empty()) {
+      InitKeywords();
+    } else {
+      InitKeywordsFromBufStr();
+    }
 
     decoder_ = std::make_unique<TransducerKeywordDecoder>(
         model_.get(), config_.max_active_paths, config_.num_trailing_blanks,
         unk_id_);
   }
 
-#if __ANDROID_API__ >= 9
-  KeywordSpotterTransducerImpl(AAssetManager *mgr,
-                               const KeywordSpotterConfig &config)
+  template <typename Manager>
+  KeywordSpotterTransducerImpl(Manager *mgr, const KeywordSpotterConfig &config)
       : config_(config),
         model_(OnlineTransducerModel::Create(mgr, config.model_config)),
         sym_(mgr, config.model_config.tokens) {
@@ -99,7 +102,6 @@ class KeywordSpotterTransducerImpl : public KeywordSpotterImpl {
         model_.get(), config_.max_active_paths, config_.num_trailing_blanks,
         unk_id_);
   }
-#endif
 
   std::unique_ptr<OnlineStream> CreateStream() const override {
     auto stream =
@@ -120,7 +122,11 @@ class KeywordSpotterTransducerImpl : public KeywordSpotterImpl {
 
     if (!EncodeKeywords(is, sym_, &current_ids, &current_kws, &current_scores,
                         &current_thresholds)) {
+#if __OHOS__
+      SHERPA_ONNX_LOGE("Encode keywords %{public}s failed.", keywords.c_str());
+#else
       SHERPA_ONNX_LOGE("Encode keywords %s failed.", keywords.c_str());
+#endif
       return nullptr;
     }
 
@@ -185,8 +191,24 @@ class KeywordSpotterTransducerImpl : public KeywordSpotterImpl {
     return s->GetNumProcessedFrames() + model_->ChunkSize() <
            s->NumFramesReady();
   }
+  void Reset(OnlineStream *s) const override { InitOnlineStream(s); }
 
   void DecodeStreams(OnlineStream **ss, int32_t n) const override {
+    for (int32_t i = 0; i < n; ++i) {
+      auto s = ss[i];
+      auto r = s->GetKeywordResult(true);
+      int32_t num_trailing_blanks = r.num_trailing_blanks;
+      // assume subsampling_factor is 4
+      // assume frameshift is 0.01 second
+      float trailing_slience = num_trailing_blanks * 4 * 0.01;
+
+      // it resets automatically after detecting 1.5 seconds of silence
+      float threshold = 1.5;
+      if (trailing_slience > threshold) {
+        Reset(s);
+      }
+    }
+
     int32_t chunk_size = model_->ChunkSize();
     int32_t chunk_shift = model_->ChunkShift();
 
@@ -280,16 +302,21 @@ class KeywordSpotterTransducerImpl : public KeywordSpotterImpl {
     // each line in keywords_file contains space-separated words
     std::ifstream is(config_.keywords_file);
     if (!is) {
+#if __OHOS__
+      SHERPA_ONNX_LOGE("Open keywords file failed: %{public}s",
+                       config_.keywords_file.c_str());
+#else
       SHERPA_ONNX_LOGE("Open keywords file failed: %s",
                        config_.keywords_file.c_str());
+#endif
       exit(-1);
     }
     InitKeywords(is);
 #endif
   }
 
-#if __ANDROID_API__ >= 9
-  void InitKeywords(AAssetManager *mgr) {
+  template <typename Manager>
+  void InitKeywords(Manager *mgr) {
     // each line in keywords_file contains space-separated words
 
     auto buf = ReadFile(mgr, config_.keywords_file);
@@ -297,13 +324,23 @@ class KeywordSpotterTransducerImpl : public KeywordSpotterImpl {
     std::istrstream is(buf.data(), buf.size());
 
     if (!is) {
+#if __OHOS__
+      SHERPA_ONNX_LOGE("Open keywords file failed: %{public}s",
+                       config_.keywords_file.c_str());
+#else
       SHERPA_ONNX_LOGE("Open keywords file failed: %s",
                        config_.keywords_file.c_str());
+#endif
       exit(-1);
     }
     InitKeywords(is);
   }
-#endif
+
+  void InitKeywordsFromBufStr() {
+    // keywords_buf's content is supposed to be same as the keywords_file's
+    std::istringstream is(config_.keywords_buf);
+    InitKeywords(is);
+  }
 
   void InitOnlineStream(OnlineStream *stream) const {
     auto r = decoder_->GetEmptyResult();

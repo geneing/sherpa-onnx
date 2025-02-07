@@ -13,13 +13,11 @@
 #include "fst/fstlib.h"
 #include "kaldi-decoder/csrc/decodable-ctc.h"
 #include "kaldifst/csrc/fstext-utils.h"
+#include "sherpa-onnx/csrc/fst-utils.h"
 #include "sherpa-onnx/csrc/macros.h"
 #include "sherpa-onnx/csrc/online-stream.h"
 
 namespace sherpa_onnx {
-
-// defined in ./offline-ctc-fst-decoder.cc
-fst::Fst<fst::StdArc> *ReadGraph(const std::string &filename);
 
 OnlineCtcFstDecoder::OnlineCtcFstDecoder(
     const OnlineCtcFstDecoderConfig &config, int32_t blank_id)
@@ -51,9 +49,10 @@ static void DecodeOne(const float *log_probs, int32_t num_rows,
     bool ok = decoder->GetBestPath(&fst_out);
     if (ok) {
       std::vector<int32_t> isymbols_out;
-      std::vector<int32_t> osymbols_out_unused;
-      ok = fst::GetLinearSymbolSequence(fst_out, &isymbols_out,
-                                        &osymbols_out_unused, nullptr);
+      std::vector<int32_t> osymbols_out;
+      /*ok =*/fst::GetLinearSymbolSequence(fst_out, &isymbols_out,
+                                           &osymbols_out, nullptr);
+      // TODO(fangjun): handle ok is false
       std::vector<int64_t> tokens;
       tokens.reserve(isymbols_out.size());
 
@@ -83,6 +82,7 @@ static void DecodeOne(const float *log_probs, int32_t num_rows,
       }
 
       result->tokens = std::move(tokens);
+      result->words = std::move(osymbols_out);
       result->timestamps = std::move(timestamps);
       // no need to set frame_offset
     }

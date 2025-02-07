@@ -9,11 +9,6 @@
 #include <utility>
 #include <vector>
 
-#if __ANDROID_API__ >= 9
-#include "android/asset_manager.h"
-#include "android/asset_manager_jni.h"
-#endif
-
 #include "onnxruntime_cxx_api.h"  // NOLINT
 #include "sherpa-onnx/csrc/online-model-config.h"
 #include "sherpa-onnx/csrc/online-transducer-model.h"
@@ -24,10 +19,9 @@ class OnlineZipformer2TransducerModel : public OnlineTransducerModel {
  public:
   explicit OnlineZipformer2TransducerModel(const OnlineModelConfig &config);
 
-#if __ANDROID_API__ >= 9
-  OnlineZipformer2TransducerModel(AAssetManager *mgr,
+  template <typename Manager>
+  OnlineZipformer2TransducerModel(Manager *mgr,
                                   const OnlineModelConfig &config);
-#endif
 
   std::vector<Ort::Value> StackStates(
       const std::vector<std::vector<Ort::Value>> &states) const override;
@@ -65,7 +59,10 @@ class OnlineZipformer2TransducerModel : public OnlineTransducerModel {
 
  private:
   Ort::Env env_;
-  Ort::SessionOptions sess_opts_;
+  Ort::SessionOptions encoder_sess_opts_;
+  Ort::SessionOptions decoder_sess_opts_;
+  Ort::SessionOptions joiner_sess_opts_;
+
   Ort::AllocatorWithDefaultOptions allocator_;
 
   std::unique_ptr<Ort::Session> encoder_sess_;

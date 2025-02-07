@@ -25,6 +25,10 @@ fun getSampleText(lang: String): String {
             text = "Aquest és un motor de text a veu que utilitza Kaldi de nova generació"
         }
 
+        "cym" -> {
+            text = "Peiriant testun-i-lais yw hwn sy'n defnyddio Kaldi'r genhedlaeth nesaf"
+        }
+
         "ces" -> {
             text = "Toto je převodník textu na řeč využívající novou generaci kaldi"
         }
@@ -43,7 +47,7 @@ fun getSampleText(lang: String): String {
         }
 
         "eng" -> {
-            text = "This is a text-to-speech engine using next generation Kaldi"
+            text = "How are you doing today? This is a text-to-speech engine using next generation Kaldi"
         }
 
         "est" -> {

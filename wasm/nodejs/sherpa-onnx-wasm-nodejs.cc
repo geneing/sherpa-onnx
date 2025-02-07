@@ -15,7 +15,9 @@ static_assert(sizeof(SherpaOnnxOfflineParaformerModelConfig) == 4, "");
 
 static_assert(sizeof(SherpaOnnxOfflineNemoEncDecCtcModelConfig) == 4, "");
 static_assert(sizeof(SherpaOnnxOfflineWhisperModelConfig) == 5 * 4, "");
+static_assert(sizeof(SherpaOnnxOfflineMoonshineModelConfig) == 4 * 4, "");
 static_assert(sizeof(SherpaOnnxOfflineTdnnModelConfig) == 4, "");
+static_assert(sizeof(SherpaOnnxOfflineSenseVoiceModelConfig) == 3 * 4, "");
 static_assert(sizeof(SherpaOnnxOfflineLMConfig) == 2 * 4, "");
 
 static_assert(sizeof(SherpaOnnxOfflineModelConfig) ==
@@ -23,13 +25,15 @@ static_assert(sizeof(SherpaOnnxOfflineModelConfig) ==
                       sizeof(SherpaOnnxOfflineParaformerModelConfig) +
                       sizeof(SherpaOnnxOfflineNemoEncDecCtcModelConfig) +
                       sizeof(SherpaOnnxOfflineWhisperModelConfig) +
-                      sizeof(SherpaOnnxOfflineTdnnModelConfig) + 5 * 4,
+                      sizeof(SherpaOnnxOfflineTdnnModelConfig) + 8 * 4 +
+                      sizeof(SherpaOnnxOfflineSenseVoiceModelConfig) +
+                      sizeof(SherpaOnnxOfflineMoonshineModelConfig),
               "");
 static_assert(sizeof(SherpaOnnxFeatureConfig) == 2 * 4, "");
 static_assert(sizeof(SherpaOnnxOfflineRecognizerConfig) ==
                   sizeof(SherpaOnnxFeatureConfig) +
                       sizeof(SherpaOnnxOfflineLMConfig) +
-                      sizeof(SherpaOnnxOfflineModelConfig) + 4 * 4,
+                      sizeof(SherpaOnnxOfflineModelConfig) + 7 * 4,
               "");
 
 void PrintOfflineTtsConfig(SherpaOnnxOfflineTtsConfig *tts_config) {
@@ -63,6 +67,8 @@ void PrintOfflineRecognizerConfig(SherpaOnnxOfflineRecognizerConfig *config) {
   auto nemo_ctc = &model_config->nemo_ctc;
   auto whisper = &model_config->whisper;
   auto tdnn = &model_config->tdnn;
+  auto sense_voice = &model_config->sense_voice;
+  auto moonshine = &model_config->moonshine;
 
   fprintf(stdout, "----------offline transducer model config----------\n");
   fprintf(stdout, "encoder: %s\n", transducer->encoder);
@@ -85,11 +91,25 @@ void PrintOfflineRecognizerConfig(SherpaOnnxOfflineRecognizerConfig *config) {
   fprintf(stdout, "----------offline tdnn model config----------\n");
   fprintf(stdout, "model: %s\n", tdnn->model);
 
+  fprintf(stdout, "----------offline sense_voice model config----------\n");
+  fprintf(stdout, "model: %s\n", sense_voice->model);
+  fprintf(stdout, "language: %s\n", sense_voice->language);
+  fprintf(stdout, "use_itn: %d\n", sense_voice->use_itn);
+
+  fprintf(stdout, "----------offline moonshine model config----------\n");
+  fprintf(stdout, "preprocessor: %s\n", moonshine->preprocessor);
+  fprintf(stdout, "encoder: %s\n", moonshine->encoder);
+  fprintf(stdout, "uncached_decoder: %s\n", moonshine->uncached_decoder);
+  fprintf(stdout, "cached_decoder: %s\n", moonshine->cached_decoder);
+
   fprintf(stdout, "tokens: %s\n", model_config->tokens);
   fprintf(stdout, "num_threads: %d\n", model_config->num_threads);
   fprintf(stdout, "provider: %s\n", model_config->provider);
   fprintf(stdout, "debug: %d\n", model_config->debug);
   fprintf(stdout, "model type: %s\n", model_config->model_type);
+  fprintf(stdout, "modeling unit: %s\n", model_config->modeling_unit);
+  fprintf(stdout, "bpe vocab: %s\n", model_config->bpe_vocab);
+  fprintf(stdout, "telespeech_ctc: %s\n", model_config->telespeech_ctc);
 
   fprintf(stdout, "----------feat config----------\n");
   fprintf(stdout, "sample rate: %d\n", feat->sample_rate);
@@ -100,6 +120,9 @@ void PrintOfflineRecognizerConfig(SherpaOnnxOfflineRecognizerConfig *config) {
   fprintf(stdout, "max active paths: %d\n", config->max_active_paths);
   fprintf(stdout, "hotwords_file: %s\n", config->hotwords_file);
   fprintf(stdout, "hotwords_score: %.2f\n", config->hotwords_score);
+  fprintf(stdout, "rule_fsts: %s\n", config->rule_fsts);
+  fprintf(stdout, "rule_fars: %s\n", config->rule_fars);
+  fprintf(stdout, "blank_penalty: %f\n", config->blank_penalty);
 }
 
 void CopyHeap(const char *src, int32_t num_bytes, char *dst) {

@@ -19,6 +19,11 @@ import com.k2fsa.sherpa.onnx.Vad
 import com.k2fsa.sherpa.onnx.getFeatureConfig
 import com.k2fsa.sherpa.onnx.getOfflineModelConfig
 import com.k2fsa.sherpa.onnx.getVadModelConfig
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.cancel
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import kotlin.concurrent.thread
 
 
@@ -166,6 +171,8 @@ class MainActivity : AppCompatActivity() {
 
         val bufferSize = 512 // in samples
         val buffer = ShortArray(bufferSize)
+        val coroutineScope = CoroutineScope(Dispatchers.IO)
+
 
         while (isRecording) {
             val ret = audioRecord?.read(buffer, 0, buffer.size)
@@ -174,13 +181,16 @@ class MainActivity : AppCompatActivity() {
 
                 vad.acceptWaveform(samples)
                 while(!vad.empty()) {
-                    var objArray = vad.front()
-                    val samples = objArray[1] as FloatArray
-                    val text = runSecondPass(samples)
-
-                    if (text.isNotBlank()) {
-                        lastText = "${lastText}\n${idx}: ${text}"
-                        idx += 1
+                    var segment = vad.front()
+                    coroutineScope.launch {
+                        val text = runSecondPass(segment.samples)
+                        if (text.isNotBlank()) {
+                            withContext(Dispatchers.Main) {
+                                lastText = "${lastText}\n${idx}: ${text}"
+                                idx += 1
+                                textView.text = lastText.lowercase()
+                            }
+                        }
                     }
 
                     vad.pop();
@@ -193,6 +203,9 @@ class MainActivity : AppCompatActivity() {
                 }
             }
         }
+
+        // Clean up the coroutine scope when done
+        coroutineScope.cancel()
     }
 
     private fun initOfflineRecognizer() {
@@ -200,12 +213,17 @@ class MainActivity : AppCompatActivity() {
         // See https://k2-fsa.github.io/sherpa/onnx/pretrained_models/index.html
         // for a list of available models
         val asrModelType = 0
+        val asrRuleFsts: String?
+        asrRuleFsts = null
         Log.i(TAG, "Select model type ${asrModelType} for ASR")
 
         val config = OfflineRecognizerConfig(
             featConfig = getFeatureConfig(sampleRate = sampleRateInHz, featureDim = 80),
             modelConfig = getOfflineModelConfig(type = asrModelType)!!,
         )
+        if (asrRuleFsts != null) {
+            config.ruleFsts = asrRuleFsts;
+        }
 
         offlineRecognizer = OfflineRecognizer(
             assetManager = application.assets,

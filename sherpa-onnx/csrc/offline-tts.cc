@@ -5,6 +5,16 @@
 #include "sherpa-onnx/csrc/offline-tts.h"
 
 #include <string>
+#include <utility>
+
+#if __ANDROID_API__ >= 9
+#include "android/asset_manager.h"
+#include "android/asset_manager_jni.h"
+#endif
+
+#if __OHOS__
+#include "rawfile/raw_file_manager.h"
+#endif
 
 #include "sherpa-onnx/csrc/file-utils.h"
 #include "sherpa-onnx/csrc/macros.h"
@@ -77,17 +87,16 @@ std::string OfflineTtsConfig::ToString() const {
 OfflineTts::OfflineTts(const OfflineTtsConfig &config)
     : impl_(OfflineTtsImpl::Create(config)) {}
 
-#if __ANDROID_API__ >= 9
-OfflineTts::OfflineTts(AAssetManager *mgr, const OfflineTtsConfig &config)
+template <typename Manager>
+OfflineTts::OfflineTts(Manager *mgr, const OfflineTtsConfig &config)
     : impl_(OfflineTtsImpl::Create(mgr, config)) {}
-#endif
 
 OfflineTts::~OfflineTts() = default;
 
 GeneratedAudio OfflineTts::Generate(
     const std::string &text, int64_t sid /*=0*/, float speed /*= 1.0*/,
     GeneratedAudioCallback callback /*= nullptr*/) const {
-  return impl_->Generate(text, sid, speed, callback);
+  return impl_->Generate(text, sid, speed, std::move(callback));
 }
 
 std::string OfflineTts::NormalizeText(const std::string &text) const {
@@ -102,5 +111,15 @@ std::vector<std::vector<int64_t>> OfflineTts::TokenizeText(
 int32_t OfflineTts::SampleRate() const { return impl_->SampleRate(); }
 
 int32_t OfflineTts::NumSpeakers() const { return impl_->NumSpeakers(); }
+
+#if __ANDROID_API__ >= 9
+template OfflineTts::OfflineTts(AAssetManager *mgr,
+                                const OfflineTtsConfig &config);
+#endif
+
+#if __OHOS__
+template OfflineTts::OfflineTts(NativeResourceManager *mgr,
+                                const OfflineTtsConfig &config);
+#endif
 
 }  // namespace sherpa_onnx

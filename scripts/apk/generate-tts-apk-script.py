@@ -30,7 +30,10 @@ def get_args():
 @dataclass
 class TtsModel:
     model_dir: str
-    model_name: str = ""
+    model_name: str = ""  # for vits
+    acoustic_model_name: str = ""  # for matcha
+    vocoder: str = ""  # for matcha
+    voices: str = ""  # for kokoro
     lang: str = ""  # en, zh, fr, de, etc.
     rule_fsts: Optional[List[str]] = None
     rule_fars: Optional[List[str]] = None
@@ -38,6 +41,7 @@ class TtsModel:
     dict_dir: Optional[str] = None
     is_char: bool = False
     lang_iso_639_3: str = ""
+    lexicon: str = ""
 
 
 def convert_lang_to_iso_639_3(models: List[TtsModel]):
@@ -103,6 +107,7 @@ def get_piper_models() -> List[TtsModel]:
         TtsModel(model_dir="vits-piper-ca_ES-upc_pau-x_low"),
         TtsModel(model_dir="vits-piper-ca_ES-upc_pau-x_low"),
         TtsModel(model_dir="vits-piper-cs_CZ-jirka-medium"),
+        TtsModel(model_dir="vits-piper-cy_GB-gwryw_gogleddol-medium"),
         TtsModel(model_dir="vits-piper-da_DK-talesyntese-medium"),
         TtsModel(model_dir="vits-piper-de_DE-eva_k-x_low"),
         TtsModel(model_dir="vits-piper-de_DE-karlsson-low"),
@@ -125,15 +130,20 @@ def get_piper_models() -> List[TtsModel]:
         TtsModel(model_dir="vits-piper-en_GB-northern_english_male-medium"),
         TtsModel(model_dir="vits-piper-en_GB-semaine-medium"),
         TtsModel(model_dir="vits-piper-en_GB-southern_english_female-low"),
+        TtsModel(model_dir="vits-piper-en_GB-southern_english_female-medium"),
+        TtsModel(model_dir="vits-piper-en_GB-southern_english_male-medium"),
         TtsModel(model_dir="vits-piper-en_GB-sweetbbak-amy"),
         TtsModel(model_dir="vits-piper-en_GB-vctk-medium"),
         TtsModel(model_dir="vits-piper-en_US-amy-low"),
         TtsModel(model_dir="vits-piper-en_US-amy-medium"),
         TtsModel(model_dir="vits-piper-en_US-arctic-medium"),
+        TtsModel(model_dir="vits-piper-en_US-bryce-medium"),
         TtsModel(model_dir="vits-piper-en_US-danny-low"),
         TtsModel(model_dir="vits-piper-en_US-glados"),
+        TtsModel(model_dir="vits-piper-en_US-hfc_female-medium"),
         TtsModel(model_dir="vits-piper-en_US-hfc_male-medium"),
         TtsModel(model_dir="vits-piper-en_US-joe-medium"),
+        TtsModel(model_dir="vits-piper-en_US-john-medium"),
         TtsModel(model_dir="vits-piper-en_US-kathleen-low"),
         TtsModel(model_dir="vits-piper-en_US-kristin-medium"),
         TtsModel(model_dir="vits-piper-en_US-kusal-medium"),
@@ -145,6 +155,7 @@ def get_piper_models() -> List[TtsModel]:
         TtsModel(model_dir="vits-piper-en_US-libritts_r-medium"),
         TtsModel(model_dir="vits-piper-en_US-ljspeech-high"),
         TtsModel(model_dir="vits-piper-en_US-ljspeech-medium"),
+        TtsModel(model_dir="vits-piper-en_US-norman-medium"),
         TtsModel(model_dir="vits-piper-en_US-ryan-high"),
         TtsModel(model_dir="vits-piper-en_US-ryan-low"),
         TtsModel(model_dir="vits-piper-en_US-ryan-medium"),
@@ -156,11 +167,13 @@ def get_piper_models() -> List[TtsModel]:
         TtsModel(model_dir="vits-piper-es_MX-claude-high"),
         TtsModel(model_dir="vits-piper-fa_IR-amir-medium"),
         TtsModel(model_dir="vits-piper-fa_IR-gyro-medium"),
+        TtsModel(model_dir="vits-piper-fa_en-rezahedayatfar-ibrahimwalk-medium"),
         TtsModel(model_dir="vits-piper-fi_FI-harri-low"),
         TtsModel(model_dir="vits-piper-fi_FI-harri-medium"),
         #  TtsModel(model_dir="vits-piper-fr_FR-mls-medium"),
         TtsModel(model_dir="vits-piper-fr_FR-siwis-low"),
         TtsModel(model_dir="vits-piper-fr_FR-siwis-medium"),
+        TtsModel(model_dir="vits-piper-fr_FR-tom-medium"),
         TtsModel(model_dir="vits-piper-fr_FR-upmc-medium"),
         TtsModel(model_dir="vits-piper-hu_HU-anna-medium"),
         TtsModel(model_dir="vits-piper-hu_HU-berta-medium"),
@@ -169,11 +182,13 @@ def get_piper_models() -> List[TtsModel]:
         TtsModel(model_dir="vits-piper-is_IS-salka-medium"),
         TtsModel(model_dir="vits-piper-is_IS-steinn-medium"),
         TtsModel(model_dir="vits-piper-is_IS-ugla-medium"),
+        TtsModel(model_dir="vits-piper-it_IT-paola-medium"),
         TtsModel(model_dir="vits-piper-it_IT-riccardo-x_low"),
         TtsModel(model_dir="vits-piper-ka_GE-natia-medium"),
         TtsModel(model_dir="vits-piper-kk_KZ-iseke-x_low"),
         TtsModel(model_dir="vits-piper-kk_KZ-issai-high"),
         TtsModel(model_dir="vits-piper-kk_KZ-raya-x_low"),
+        TtsModel(model_dir="vits-piper-lv_LV-aivars-medium"),
         TtsModel(model_dir="vits-piper-lb_LU-marylux-medium"),
         TtsModel(model_dir="vits-piper-ne_NP-google-medium"),
         TtsModel(model_dir="vits-piper-ne_NP-google-x_low"),
@@ -181,9 +196,9 @@ def get_piper_models() -> List[TtsModel]:
         TtsModel(model_dir="vits-piper-nl_BE-nathalie-x_low"),
         TtsModel(model_dir="vits-piper-nl_BE-rdh-medium"),
         TtsModel(model_dir="vits-piper-nl_BE-rdh-x_low"),
-        TtsModel(model_dir="vits-piper-nl_NL-mls-medium"),
-        TtsModel(model_dir="vits-piper-nl_NL-mls_5809-low"),
-        TtsModel(model_dir="vits-piper-nl_NL-mls_7432-low"),
+        #  TtsModel(model_dir="vits-piper-nl_NL-mls-medium"),
+        #  TtsModel(model_dir="vits-piper-nl_NL-mls_5809-low"),
+        #  TtsModel(model_dir="vits-piper-nl_NL-mls_7432-low"),
         TtsModel(model_dir="vits-piper-no_NO-talesyntese-medium"),
         TtsModel(model_dir="vits-piper-pl_PL-darkman-medium"),
         TtsModel(model_dir="vits-piper-pl_PL-gosia-medium"),
@@ -203,6 +218,7 @@ def get_piper_models() -> List[TtsModel]:
         TtsModel(model_dir="vits-piper-sw_CD-lanfrica-medium"),
         TtsModel(model_dir="vits-piper-tr_TR-dfki-medium"),
         TtsModel(model_dir="vits-piper-tr_TR-fahrettin-medium"),
+        TtsModel(model_dir="vits-piper-tr_TR-fettah-medium"),
         TtsModel(model_dir="vits-piper-uk_UA-lada-x_low"),
         TtsModel(model_dir="vits-piper-uk_UA-ukrainian_tts-medium"),
         TtsModel(model_dir="vits-piper-vi_VN-25hours_single-low"),
@@ -303,6 +319,11 @@ def get_vits_models() -> List[TtsModel]:
             lang="zh",
         ),
         TtsModel(
+            model_dir="vits-melo-tts-zh_en",
+            model_name="model.onnx",
+            lang="zh",
+        ),
+        TtsModel(
             model_dir="vits-zh-hf-fanchen-C",
             model_name="vits-zh-hf-fanchen-C.onnx",
             lang="zh",
@@ -322,19 +343,27 @@ def get_vits_models() -> List[TtsModel]:
             model_name="vits-zh-hf-fanchen-unity.onnx",
             lang="zh",
         ),
+        TtsModel(
+            model_dir="sherpa-onnx-vits-zh-ll",
+            model_name="model.onnx",
+            lang="zh",
+        ),
     ]
 
-    rule_fsts = ["phone.fst", "date.fst", "number.fst", "new_heteronym.fst"]
+    rule_fsts = ["phone.fst", "date.fst", "number.fst"]
     for m in chinese_models:
         s = [f"{m.model_dir}/{r}" for r in rule_fsts]
-        if "vits-zh-hf" in m.model_dir:
+        if (
+            "vits-zh-hf" in m.model_dir
+            or "sherpa-onnx-vits-zh-ll" == m.model_dir
+            or "melo-tts" in m.model_dir
+        ):
             s = s[:-1]
             m.dict_dir = m.model_dir + "/dict"
+        else:
+            m.rule_fars = f"{m.model_dir}/rule.far"
 
         m.rule_fsts = ",".join(s)
-
-        if "vits-zh-hf" not in m.model_dir:
-            m.rule_fars = f"{m.model_dir}/rule.far"
 
     all_models = chinese_models + [
         TtsModel(
@@ -353,6 +382,64 @@ def get_vits_models() -> List[TtsModel]:
     return all_models
 
 
+def get_matcha_models() -> List[TtsModel]:
+    chinese_models = [
+        TtsModel(
+            model_dir="matcha-icefall-zh-baker",
+            acoustic_model_name="model-steps-3.onnx",
+            lang="zh",
+        )
+    ]
+    rule_fsts = ["phone.fst", "date.fst", "number.fst"]
+    for m in chinese_models:
+        s = [f"{m.model_dir}/{r}" for r in rule_fsts]
+        m.rule_fsts = ",".join(s)
+        m.dict_dir = m.model_dir + "/dict"
+        m.vocoder = "hifigan_v2.onnx"
+
+    english_models = [
+        TtsModel(
+            model_dir="matcha-icefall-en_US-ljspeech",
+            acoustic_model_name="model-steps-3.onnx",
+            lang="en",
+        )
+    ]
+    for m in english_models:
+        m.data_dir = f"{m.model_dir}/espeak-ng-data"
+        m.vocoder = "hifigan_v2.onnx"
+
+    return chinese_models + english_models
+
+
+def get_kokoro_models() -> List[TtsModel]:
+    english_models = [
+        TtsModel(
+            model_dir="kokoro-en-v0_19",
+            model_name="model.onnx",
+            lang="en",
+        )
+    ]
+    for m in english_models:
+        m.data_dir = f"{m.model_dir}/espeak-ng-data"
+        m.voices = "voices.bin"
+
+    multi_lingual_models = [
+        TtsModel(
+            model_dir="kokoro-multi-lang-v1_0",
+            model_name="model.onnx",
+            lang="en",
+        )
+    ]
+    for m in multi_lingual_models:
+        m.data_dir = f"{m.model_dir}/espeak-ng-data"
+        m.dict_dir = f"{m.model_dir}/dict"
+        m.voices = "voices.bin"
+        m.lexicon = f"{m.model_dir}/lexicon-us-en.txt,{m.model_dir}/lexicon-zh.txt"
+        m.rule_fsts = f"{m.model_dir}/phone-zh.fst,{m.model_dir}/date-zh.fst,{m.model_dir}/number-zh.fst"
+
+    return english_models + multi_lingual_models
+
+
 def main():
     args = get_args()
     index = args.index
@@ -364,7 +451,11 @@ def main():
     all_model_list += get_piper_models()
     all_model_list += get_mimic3_models()
     all_model_list += get_coqui_models()
+    all_model_list += get_matcha_models()
+    all_model_list += get_kokoro_models()
+
     convert_lang_to_iso_639_3(all_model_list)
+    print(all_model_list)
 
     num_models = len(all_model_list)
 

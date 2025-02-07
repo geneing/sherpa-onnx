@@ -6,7 +6,6 @@ on:
       - master
     paths:
       - '.github/workflows/test-python-online-websocket-server.yaml'
-      - 'CMakeLists.txt'
       - 'cmake/**'
       - 'sherpa-onnx/csrc/*'
       - 'sherpa-onnx/python/**'
@@ -15,7 +14,6 @@ on:
       - master
     paths:
       - '.github/workflows/test-python-online-websocket-server.yaml'
-      - 'CMakeLists.txt'
       - 'cmake/**'
       - 'sherpa-onnx/csrc/*'
       - 'sherpa-onnx/python/**'
@@ -57,7 +55,7 @@ jobs:
       - name: Install Python dependencies
         shell: bash
         run: |
-          python3 -m pip install --upgrade pip numpy pypinyin sentencepiece
+          python3 -m pip install --upgrade pip numpy pypinyin sentencepiece setuptools wheel
 
       - name: Install sherpa-onnx
         shell: bash
@@ -66,7 +64,7 @@ jobs:
           export PATH="/usr/lib/ccache:/usr/local/opt/ccache/libexec:$PATH"
           cmake --version
 
-          python3 -m pip install --no-deps --verbose .
+          python3 -m pip install .
           python3 -m pip install websockets
 
       - name: Start server for zipformer2 CTC models

@@ -13,7 +13,9 @@ function(download_onnxruntime)
       include(onnxruntime-linux-riscv64-static)
     endif()
   elseif(CMAKE_SYSTEM_NAME STREQUAL Linux AND CMAKE_SYSTEM_PROCESSOR STREQUAL aarch64)
-    if(BUILD_SHARED_LIBS)
+    if(SHERPA_ONNX_ENABLE_GPU)
+      include(onnxruntime-linux-aarch64-gpu)
+    elseif(BUILD_SHARED_LIBS)
       include(onnxruntime-linux-aarch64)
     else()
       include(onnxruntime-linux-aarch64-static)
@@ -87,10 +89,19 @@ function(download_onnxruntime)
       if(SHERPA_ONNX_ENABLE_GPU)
         message(FATAL_ERROR "GPU support for Win32 is not supported!")
       endif()
-    else()
-      # for 64-bit windows
-
+    elseif(CMAKE_VS_PLATFORM_NAME STREQUAL ARM64 OR CMAKE_VS_PLATFORM_NAME STREQUAL arm64)
+      # for 64-bit windows (arm64)
       if(BUILD_SHARED_LIBS)
+        include(onnxruntime-win-arm64)
+      else()
+        include(onnxruntime-win-arm64-static)
+      endif()
+    else()
+      # for 64-bit windows (x64)
+      if(SHERPA_ONNX_ENABLE_DIRECTML)
+        message(STATUS "Use DirectML")
+        include(onnxruntime-win-x64-directml)
+      elseif(BUILD_SHARED_LIBS)
         message(STATUS "Use dynamic onnxruntime libraries")
         if(SHERPA_ONNX_ENABLE_GPU)
           include(onnxruntime-win-x64-gpu)
@@ -131,8 +142,8 @@ if(SHERPA_ONNX_USE_PRE_INSTALLED_ONNXRUNTIME_IF_AVAILABLE)
   else()
     find_path(location_onnxruntime_header_dir onnxruntime_cxx_api.h
       PATHS
-        /usr/include
-        /usr/local/include
+        /usr/include/onnxruntime
+        /usr/local/include/onnxruntime
     )
   endif()
 
@@ -141,6 +152,8 @@ if(SHERPA_ONNX_USE_PRE_INSTALLED_ONNXRUNTIME_IF_AVAILABLE)
   if(DEFINED ENV{SHERPA_ONNXRUNTIME_LIB_DIR})
     if(APPLE)
       set(location_onnxruntime_lib $ENV{SHERPA_ONNXRUNTIME_LIB_DIR}/libonnxruntime.dylib)
+    elseif(WIN32)
+      set(location_onnxruntime_lib $ENV{SHERPA_ONNXRUNTIME_LIB_DIR}/onnxruntime.lib)
     else()
       set(location_onnxruntime_lib $ENV{SHERPA_ONNXRUNTIME_LIB_DIR}/libonnxruntime.so)
     endif()
@@ -187,6 +200,7 @@ if(location_onnxruntime_header_dir AND location_onnxruntime_lib)
     add_library(onnxruntime SHARED IMPORTED)
     set_target_properties(onnxruntime PROPERTIES
       IMPORTED_LOCATION ${location_onnxruntime_lib}
+      IMPORTED_IMPLIB ${location_onnxruntime_lib}
       INTERFACE_INCLUDE_DIRECTORIES "${location_onnxruntime_header_dir}"
     )
     if(SHERPA_ONNX_ENABLE_GPU AND location_onnxruntime_cuda_lib)

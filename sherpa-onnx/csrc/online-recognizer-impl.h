@@ -9,6 +9,7 @@
 #include <string>
 #include <vector>
 
+#include "kaldifst/csrc/text-normalizer.h"
 #include "sherpa-onnx/csrc/macros.h"
 #include "sherpa-onnx/csrc/online-recognizer.h"
 #include "sherpa-onnx/csrc/online-stream.h"
@@ -17,13 +18,17 @@ namespace sherpa_onnx {
 
 class OnlineRecognizerImpl {
  public:
+  explicit OnlineRecognizerImpl(const OnlineRecognizerConfig &config);
+
   static std::unique_ptr<OnlineRecognizerImpl> Create(
       const OnlineRecognizerConfig &config);
 
-#if __ANDROID_API__ >= 9
+  template <typename Manager>
+  OnlineRecognizerImpl(Manager *mgr, const OnlineRecognizerConfig &config);
+
+  template <typename Manager>
   static std::unique_ptr<OnlineRecognizerImpl> Create(
-      AAssetManager *mgr, const OnlineRecognizerConfig &config);
-#endif
+      Manager *mgr, const OnlineRecognizerConfig &config);
 
   virtual ~OnlineRecognizerImpl() = default;
 
@@ -50,6 +55,15 @@ class OnlineRecognizerImpl {
   virtual bool IsEndpoint(OnlineStream *s) const = 0;
 
   virtual void Reset(OnlineStream *s) const = 0;
+
+  std::string ApplyInverseTextNormalization(std::string text) const;
+
+ private:
+  OnlineRecognizerConfig config_;
+  // for inverse text normalization. Used only if
+  // config.rule_fsts is not empty or
+  // config.rule_fars is not empty
+  std::vector<std::unique_ptr<kaldifst::TextNormalizer>> itn_list_;
 };
 
 }  // namespace sherpa_onnx

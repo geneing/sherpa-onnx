@@ -7,6 +7,7 @@ out_jar := $(out_dir)/sherpa-onnx.jar
 package_dir := com/k2fsa/sherpa/onnx
 
 java_files := WaveReader.java
+java_files += WaveWriter.java
 java_files += EndpointRule.java
 java_files += EndpointConfig.java
 java_files += FeatureConfig.java
@@ -25,17 +26,22 @@ java_files += OnlineRecognizer.java
 java_files += OfflineTransducerModelConfig.java
 java_files += OfflineParaformerModelConfig.java
 java_files += OfflineWhisperModelConfig.java
+java_files += OfflineMoonshineModelConfig.java
 java_files += OfflineNemoEncDecCtcModelConfig.java
+java_files += OfflineSenseVoiceModelConfig.java
 java_files += OfflineModelConfig.java
 java_files += OfflineRecognizerConfig.java
 java_files += OfflineRecognizerResult.java
 java_files += OfflineStream.java
 java_files += OfflineRecognizer.java
 
+java_files += OfflineTtsKokoroModelConfig.java
+java_files += OfflineTtsMatchaModelConfig.java
 java_files += OfflineTtsVitsModelConfig.java
 java_files += OfflineTtsModelConfig.java
 java_files += OfflineTtsConfig.java
 java_files += GeneratedAudio.java
+java_files += OfflineTtsCallback.java
 java_files += OfflineTts.java
 
 java_files += SpokenLanguageIdentificationWhisperConfig.java
@@ -55,6 +61,24 @@ java_files += AudioTagging.java
 java_files += SpeakerEmbeddingExtractorConfig.java
 java_files += SpeakerEmbeddingExtractor.java
 java_files += SpeakerEmbeddingManager.java
+
+java_files += SileroVadModelConfig.java
+java_files += VadModelConfig.java
+java_files += SpeechSegment.java
+java_files += Vad.java
+
+java_files += KeywordSpotterConfig.java
+java_files += KeywordSpotterResult.java
+java_files += KeywordSpotter.java
+
+java_files += OfflineSpeakerSegmentationPyannoteModelConfig.java
+java_files += OfflineSpeakerSegmentationModelConfig.java
+java_files += FastClusteringConfig.java
+java_files += OfflineSpeakerDiarizationConfig.java
+java_files += OfflineSpeakerDiarizationSegment.java
+java_files += OfflineSpeakerDiarizationCallback.java
+java_files += OfflineSpeakerDiarization.java
+
 
 class_files := $(java_files:%.java=%.class)
 

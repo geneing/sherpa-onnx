@@ -5,10 +5,20 @@
 #include "sherpa-onnx/csrc/offline-whisper-model.h"
 
 #include <algorithm>
+#include <cmath>
 #include <string>
 #include <tuple>
 #include <unordered_map>
 #include <utility>
+
+#if __ANDROID_API__ >= 9
+#include "android/asset_manager.h"
+#include "android/asset_manager_jni.h"
+#endif
+
+#if __OHOS__
+#include "rawfile/raw_file_manager.h"
+#endif
 
 #include "sherpa-onnx/csrc/macros.h"
 #include "sherpa-onnx/csrc/onnx-utils.h"
@@ -24,7 +34,6 @@ class OfflineWhisperModel::Impl {
         env_(ORT_LOGGING_LEVEL_ERROR),
         sess_opts_(GetSessionOptions(config)),
         allocator_{} {
-    debug_ = config_.debug;
     {
       auto buf = ReadFile(config.whisper.encoder);
       InitEncoder(buf.data(), buf.size());
@@ -41,7 +50,6 @@ class OfflineWhisperModel::Impl {
         env_(ORT_LOGGING_LEVEL_ERROR),
         sess_opts_(GetSessionOptions(config)),
         allocator_{} {
-    debug_ = config_.debug;
     {
       auto buf = ReadFile(config.whisper.encoder);
       InitEncoder(buf.data(), buf.size());
@@ -53,13 +61,12 @@ class OfflineWhisperModel::Impl {
     }
   }
 
-#if __ANDROID_API__ >= 9
-  Impl(AAssetManager *mgr, const OfflineModelConfig &config)
+  template <typename Manager>
+  Impl(Manager *mgr, const OfflineModelConfig &config)
       : config_(config),
         env_(ORT_LOGGING_LEVEL_ERROR),
         sess_opts_(GetSessionOptions(config)),
         allocator_{} {
-    debug_ = config_.debug;
     {
       auto buf = ReadFile(mgr, config.whisper.encoder);
       InitEncoder(buf.data(), buf.size());
@@ -71,12 +78,12 @@ class OfflineWhisperModel::Impl {
     }
   }
 
-  Impl(AAssetManager *mgr, const SpokenLanguageIdentificationConfig &config)
+  template <typename Manager>
+  Impl(Manager *mgr, const SpokenLanguageIdentificationConfig &config)
       : lid_config_(config),
         env_(ORT_LOGGING_LEVEL_ERROR),
         sess_opts_(GetSessionOptions(config)),
         allocator_{} {
-    debug_ = config_.debug;
     {
       auto buf = ReadFile(mgr, config.whisper.encoder);
       InitEncoder(buf.data(), buf.size());
@@ -87,7 +94,6 @@ class OfflineWhisperModel::Impl {
       InitDecoder(buf.data(), buf.size());
     }
   }
-#endif
 
   std::pair<Ort::Value, Ort::Value> ForwardEncoder(Ort::Value features) {
     auto encoder_out = encoder_sess_->Run(
@@ -148,7 +154,6 @@ class OfflineWhisperModel::Impl {
     cross_v = std::move(std::get<4>(decoder_out));
 
     const float *p_logits = std::get<0>(decoder_out).GetTensorData<float>();
-    int32_t vocab_size = VocabSize();
     const auto &all_language_ids = GetAllLanguageIDs();
 
     int32_t lang_id = all_language_ids[0];
@@ -164,7 +169,7 @@ class OfflineWhisperModel::Impl {
       }
     }
 
-    if (debug_) {
+    if (config_.debug) {
       SHERPA_ONNX_LOGE("Detected language: %s",
                        GetID2Lang().at(lang_id).c_str());
     }
@@ -192,7 +197,7 @@ class OfflineWhisperModel::Impl {
     return {std::move(n_layer_self_k_cache), std::move(n_layer_self_v_cache)};
   }
 
-  OrtAllocator *Allocator() const { return allocator_; }
+  OrtAllocator *Allocator() { return allocator_; }
 
   const std::vector<int64_t> &GetInitialTokens() const { return sot_sequence_; }
 
@@ -218,6 +223,8 @@ class OfflineWhisperModel::Impl {
 
   int32_t VocabSize() const { return n_vocab_; }
 
+  int32_t FeatureDim() const { return n_mels_; }
+
   int32_t Translate() const { return translate_; }
 
   bool IsMultiLingual() const { return is_multilingual_; }
@@ -235,14 +242,19 @@ class OfflineWhisperModel::Impl {
 
     // get meta data
     Ort::ModelMetadata meta_data = encoder_sess_->GetModelMetadata();
-    if (debug_) {
+    if (config_.debug) {
       std::ostringstream os;
       os << "---encoder---\n";
       PrintModelMetadata(os, meta_data);
+#if __OHOS__
+      SHERPA_ONNX_LOGE("%{public}s\n", os.str().c_str());
+#else
       SHERPA_ONNX_LOGE("%s\n", os.str().c_str());
+#endif
     }
 
     Ort::AllocatorWithDefaultOptions allocator;  // used in the macro below
+    SHERPA_ONNX_READ_META_DATA(n_mels_, "n_mels");
     SHERPA_ONNX_READ_META_DATA(n_text_layer_, "n_text_layer");
     SHERPA_ONNX_READ_META_DATA(n_text_ctx_, "n_text_ctx");
     SHERPA_ONNX_READ_META_DATA(n_text_state_, "n_text_state");
@@ -291,7 +303,6 @@ class OfflineWhisperModel::Impl {
  private:
   OfflineModelConfig config_;
   SpokenLanguageIdentificationConfig lid_config_;
-  bool debug_ = false;
   Ort::Env env_;
   Ort::SessionOptions sess_opts_;
   Ort::AllocatorWithDefaultOptions allocator_;
@@ -317,18 +328,19 @@ class OfflineWhisperModel::Impl {
   std::unordered_map<int32_t, std::string> id2lang_;
 
   // model meta data
-  int32_t n_text_layer_;
-  int32_t n_text_ctx_;
-  int32_t n_text_state_;
-  int32_t n_vocab_;
-  int32_t sot_;
-  int32_t eot_;
-  int32_t blank_;
-  int32_t translate_;
-  int32_t transcribe_;
-  int32_t no_timestamps_;
-  int32_t no_speech_;
-  int32_t is_multilingual_;
+  int32_t n_mels_ = 80;
+  int32_t n_text_layer_ = 0;
+  int32_t n_text_ctx_ = 0;
+  int32_t n_text_state_ = 0;
+  int32_t n_vocab_ = 0;
+  int32_t sot_ = 0;
+  int32_t eot_ = 0;
+  int32_t blank_ = 0;
+  int32_t translate_ = 0;
+  int32_t transcribe_ = 0;
+  int32_t no_timestamps_ = 0;
+  int32_t no_speech_ = 0;
+  int32_t is_multilingual_ = 0;
   std::vector<int64_t> sot_sequence_;
 };
 
@@ -339,16 +351,15 @@ OfflineWhisperModel::OfflineWhisperModel(
     const SpokenLanguageIdentificationConfig &config)
     : impl_(std::make_unique<Impl>(config)) {}
 
-#if __ANDROID_API__ >= 9
-OfflineWhisperModel::OfflineWhisperModel(AAssetManager *mgr,
+template <typename Manager>
+OfflineWhisperModel::OfflineWhisperModel(Manager *mgr,
                                          const OfflineModelConfig &config)
     : impl_(std::make_unique<Impl>(mgr, config)) {}
 
+template <typename Manager>
 OfflineWhisperModel::OfflineWhisperModel(
-    AAssetManager *mgr, const SpokenLanguageIdentificationConfig &config)
+    Manager *mgr, const SpokenLanguageIdentificationConfig &config)
     : impl_(std::make_unique<Impl>(mgr, config)) {}
-
-#endif
 
 OfflineWhisperModel::~OfflineWhisperModel() = default;
 
@@ -415,6 +426,8 @@ int32_t OfflineWhisperModel::TextCtx() const { return impl_->TextCtx(); }
 
 int32_t OfflineWhisperModel::VocabSize() const { return impl_->VocabSize(); }
 
+int32_t OfflineWhisperModel::FeatureDim() const { return impl_->FeatureDim(); }
+
 int32_t OfflineWhisperModel::Translate() const { return impl_->Translate(); }
 
 bool OfflineWhisperModel::IsMultiLingual() const {
@@ -451,5 +464,22 @@ void OfflineWhisperModel::NormalizeFeatures(float *features, int32_t num_frames,
     features[i] = f;
   }
 }
+
+#if __ANDROID_API__ >= 9
+template OfflineWhisperModel::OfflineWhisperModel(
+    AAssetManager *mgr, const OfflineModelConfig &config);
+
+template OfflineWhisperModel::OfflineWhisperModel(
+    AAssetManager *mgr, const SpokenLanguageIdentificationConfig &config);
+#endif
+
+#if __OHOS__
+template OfflineWhisperModel::OfflineWhisperModel(
+    NativeResourceManager *mgr, const OfflineModelConfig &config);
+
+template OfflineWhisperModel::OfflineWhisperModel(
+    NativeResourceManager *mgr,
+    const SpokenLanguageIdentificationConfig &config);
+#endif
 
 }  // namespace sherpa_onnx

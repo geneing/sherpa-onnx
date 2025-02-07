@@ -6,11 +6,10 @@ on:
       - master
       - pkg-config
     tags:
-      - '*'
+      - 'v[0-9]+.[0-9]+.[0-9]+*'
     paths:
       - '.github/workflows/pkg-config.yaml'
       - '.github/scripts/test-offline-tts.sh'
-      - 'CMakeLists.txt'
       - 'cmake/**'
       - 'sherpa-onnx/csrc/*'
       - 'sherpa-onnx/c-api/*'
@@ -21,7 +20,6 @@ on:
     paths:
       - '.github/workflows/pkg-config.yaml'
       - '.github/scripts/test-offline-tts.sh'
-      - 'CMakeLists.txt'
       - 'cmake/**'
       - 'sherpa-onnx/csrc/*'
       - 'sherpa-onnx/c-api/*'

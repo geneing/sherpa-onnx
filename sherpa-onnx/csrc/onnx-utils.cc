@@ -6,8 +6,14 @@
 
 #include <algorithm>
 #include <fstream>
+#include <functional>
+#include <memory>
+#include <numeric>
 #include <sstream>
 #include <string>
+#include <vector>
+
+#include "sherpa-onnx/csrc/macros.h"
 
 #if __ANDROID_API__ >= 9
 #include "android/asset_manager.h"
@@ -19,6 +25,36 @@
 
 namespace sherpa_onnx {
 
+static std::string GetInputName(Ort::Session *sess, size_t index,
+                                OrtAllocator *allocator) {
+// Note(fangjun): We only tested 1.17.1 and 1.11.0
+// For other versions, we may need to change it
+#if ORT_API_VERSION >= 12
+  auto v = sess->GetInputNameAllocated(index, allocator);
+  return v.get();
+#else
+  auto v = sess->GetInputName(index, allocator);
+  std::string ans = v;
+  allocator->Free(allocator, v);
+  return ans;
+#endif
+}
+
+static std::string GetOutputName(Ort::Session *sess, size_t index,
+                                 OrtAllocator *allocator) {
+// Note(fangjun): We only tested 1.17.1 and 1.11.0
+// For other versions, we may need to change it
+#if ORT_API_VERSION >= 12
+  auto v = sess->GetOutputNameAllocated(index, allocator);
+  return v.get();
+#else
+  auto v = sess->GetOutputName(index, allocator);
+  std::string ans = v;
+  allocator->Free(allocator, v);
+  return ans;
+#endif
+}
+
 void GetInputNames(Ort::Session *sess, std::vector<std::string> *input_names,
                    std::vector<const char *> *input_names_ptr) {
   Ort::AllocatorWithDefaultOptions allocator;
@@ -26,8 +62,7 @@ void GetInputNames(Ort::Session *sess, std::vector<std::string> *input_names,
   input_names->resize(node_count);
   input_names_ptr->resize(node_count);
   for (size_t i = 0; i != node_count; ++i) {
-    auto tmp = sess->GetInputNameAllocated(i, allocator);
-    (*input_names)[i] = tmp.get();
+    (*input_names)[i] = GetInputName(sess, i, allocator);
     (*input_names_ptr)[i] = (*input_names)[i].c_str();
   }
 }
@@ -39,8 +74,7 @@ void GetOutputNames(Ort::Session *sess, std::vector<std::string> *output_names,
   output_names->resize(node_count);
   output_names_ptr->resize(node_count);
   for (size_t i = 0; i != node_count; ++i) {
-    auto tmp = sess->GetOutputNameAllocated(i, allocator);
-    (*output_names)[i] = tmp.get();
+    (*output_names)[i] = GetOutputName(sess, i, allocator);
     (*output_names_ptr)[i] = (*output_names)[i].c_str();
   }
 }
@@ -76,12 +110,24 @@ Ort::Value GetEncoderOutFrame(OrtAllocator *allocator, Ort::Value *encoder_out,
 
 void PrintModelMetadata(std::ostream &os, const Ort::ModelMetadata &meta_data) {
   Ort::AllocatorWithDefaultOptions allocator;
+#if ORT_API_VERSION >= 12
   std::vector<Ort::AllocatedStringPtr> v =
       meta_data.GetCustomMetadataMapKeysAllocated(allocator);
   for (const auto &key : v) {
     auto p = meta_data.LookupCustomMetadataMapAllocated(key.get(), allocator);
     os << key.get() << "=" << p.get() << "\n";
   }
+#else
+  int64_t num_keys = 0;
+  char **keys = meta_data.GetCustomMetadataMapKeys(allocator, num_keys);
+  for (int32_t i = 0; i < num_keys; ++i) {
+    auto v = LookupCustomModelMetaData(meta_data, keys[i], allocator);
+    os << keys[i] << "=" << v << "\n";
+    allocator.Free(keys[i]);
+  }
+
+  allocator.Free(keys);
+#endif
 }
 
 Ort::Value Clone(OrtAllocator *allocator, const Ort::Value *v) {
@@ -153,17 +199,60 @@ Ort::Value View(Ort::Value *v) {
   }
 }
 
-void Print1D(Ort::Value *v) {
+float ComputeSum(const Ort::Value *v, int32_t n /*= -1*/) {
   std::vector<int64_t> shape = v->GetTensorTypeAndShapeInfo().GetShape();
-  const float *d = v->GetTensorData<float>();
-  for (int32_t i = 0; i != static_cast<int32_t>(shape[0]); ++i) {
-    fprintf(stderr, "%.3f ", d[i]);
+  auto size = static_cast<int32_t>(
+      std::accumulate(shape.begin(), shape.end(), 1, std::multiplies<>()));
+  if (n != -1 && n < size && n > 0) {
+    size = n;
   }
-  fprintf(stderr, "\n");
+
+  const float *p = v->GetTensorData<float>();
+
+  return std::accumulate(p, p + size, 1.0f);
+}
+
+float ComputeMean(const Ort::Value *v, int32_t n /*= -1*/) {
+  std::vector<int64_t> shape = v->GetTensorTypeAndShapeInfo().GetShape();
+  auto size = static_cast<int32_t>(
+      std::accumulate(shape.begin(), shape.end(), 1, std::multiplies<>()));
+
+  if (n != -1 && n < size && n > 0) {
+    size = n;
+  }
+
+  auto sum = ComputeSum(v, n);
+  return sum / size;
+}
+
+void PrintShape(const Ort::Value *v) {
+  std::vector<int64_t> shape = v->GetTensorTypeAndShapeInfo().GetShape();
+  std::ostringstream os;
+  for (auto i : shape) {
+    os << i << ", ";
+  }
+  os << "\n";
+  fprintf(stderr, "%s", os.str().c_str());
 }
 
 template <typename T /*= float*/>
-void Print2D(Ort::Value *v) {
+void Print1D(const Ort::Value *v) {
+  std::vector<int64_t> shape = v->GetTensorTypeAndShapeInfo().GetShape();
+  const T *d = v->GetTensorData<T>();
+  std::ostringstream os;
+  for (int32_t i = 0; i != static_cast<int32_t>(shape[0]); ++i) {
+    os << d[i] << " ";
+  }
+  os << "\n";
+  fprintf(stderr, "%s\n", os.str().c_str());
+}
+
+template void Print1D<int64_t>(const Ort::Value *v);
+template void Print1D<int32_t>(const Ort::Value *v);
+template void Print1D<float>(const Ort::Value *v);
+
+template <typename T /*= float*/>
+void Print2D(const Ort::Value *v) {
   std::vector<int64_t> shape = v->GetTensorTypeAndShapeInfo().GetShape();
   const T *d = v->GetTensorData<T>();
 
@@ -177,10 +266,10 @@ void Print2D(Ort::Value *v) {
   fprintf(stderr, "%s\n", os.str().c_str());
 }
 
-template void Print2D<int64_t>(Ort::Value *v);
-template void Print2D<float>(Ort::Value *v);
+template void Print2D<int64_t>(const Ort::Value *v);
+template void Print2D<float>(const Ort::Value *v);
 
-void Print3D(Ort::Value *v) {
+void Print3D(const Ort::Value *v) {
   std::vector<int64_t> shape = v->GetTensorTypeAndShapeInfo().GetShape();
   const float *d = v->GetTensorData<float>();
 
@@ -196,7 +285,7 @@ void Print3D(Ort::Value *v) {
   fprintf(stderr, "\n");
 }
 
-void Print4D(Ort::Value *v) {
+void Print4D(const Ort::Value *v) {
   std::vector<int64_t> shape = v->GetTensorTypeAndShapeInfo().GetShape();
   const float *d = v->GetTensorData<float>();
 
@@ -236,6 +325,38 @@ std::vector<char> ReadFile(AAssetManager *mgr, const std::string &filename) {
 
   std::vector<char> buffer(p, p + asset_length);
   AAsset_close(asset);
+
+  return buffer;
+}
+#endif
+
+#if __OHOS__
+std::vector<char> ReadFile(NativeResourceManager *mgr,
+                           const std::string &filename) {
+  std::unique_ptr<RawFile, decltype(&OH_ResourceManager_CloseRawFile)> fp(
+      OH_ResourceManager_OpenRawFile(mgr, filename.c_str()),
+      OH_ResourceManager_CloseRawFile);
+
+  if (!fp) {
+    std::ostringstream os;
+    os << "Read file '" << filename << "' failed.";
+    SHERPA_ONNX_LOGE("%s", os.str().c_str());
+    return {};
+  }
+
+  auto len = static_cast<int32_t>(OH_ResourceManager_GetRawFileSize(fp.get()));
+
+  std::vector<char> buffer(len);
+
+  int32_t n = OH_ResourceManager_ReadRawFile(fp.get(), buffer.data(), len);
+
+  if (n != len) {
+    std::ostringstream os;
+    os << "Read file '" << filename << "' failed. Number of bytes read: " << n
+       << ". Expected bytes to read: " << len;
+    SHERPA_ONNX_LOGE("%s", os.str().c_str());
+    return {};
+  }
 
   return buffer;
 }
@@ -281,11 +402,12 @@ CopyableOrtValue &CopyableOrtValue::operator=(const CopyableOrtValue &other) {
   return *this;
 }
 
-CopyableOrtValue::CopyableOrtValue(CopyableOrtValue &&other) {
+CopyableOrtValue::CopyableOrtValue(CopyableOrtValue &&other) noexcept {
   *this = std::move(other);
 }
 
-CopyableOrtValue &CopyableOrtValue::operator=(CopyableOrtValue &&other) {
+CopyableOrtValue &CopyableOrtValue::operator=(
+    CopyableOrtValue &&other) noexcept {
   if (this == &other) {
     return *this;
   }
@@ -313,6 +435,22 @@ std::vector<Ort::Value> Convert(std::vector<CopyableOrtValue> values) {
   }
 
   return ans;
+}
+
+std::string LookupCustomModelMetaData(const Ort::ModelMetadata &meta_data,
+                                      const char *key,
+                                      OrtAllocator *allocator) {
+// Note(fangjun): We only tested 1.17.1 and 1.11.0
+// For other versions, we may need to change it
+#if ORT_API_VERSION >= 12
+  auto v = meta_data.LookupCustomMetadataMapAllocated(key, allocator);
+  return v ? v.get() : "";
+#else
+  auto v = meta_data.LookupCustomMetadataMap(key, allocator);
+  std::string ans = v ? v : "";
+  allocator->Free(allocator, v);
+  return ans;
+#endif
 }
 
 }  // namespace sherpa_onnx

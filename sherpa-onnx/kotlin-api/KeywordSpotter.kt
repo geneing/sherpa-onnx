@@ -5,7 +5,7 @@ import android.content.res.AssetManager
 
 data class KeywordSpotterConfig(
     var featConfig: FeatureConfig = FeatureConfig(),
-    var modelConfig: OnlineModelConfig,
+    var modelConfig: OnlineModelConfig = OnlineModelConfig(),
     var maxActivePaths: Int = 4,
     var keywordsFile: String = "keywords.txt",
     var keywordsScore: Float = 1.5f,
@@ -24,7 +24,7 @@ class KeywordSpotter(
     assetManager: AssetManager? = null,
     val config: KeywordSpotterConfig,
 ) {
-    private val ptr: Long
+    private var ptr: Long
 
     init {
         ptr = if (assetManager != null) {
@@ -35,7 +35,10 @@ class KeywordSpotter(
     }
 
     protected fun finalize() {
-        delete(ptr)
+        if (ptr != 0L) {
+            delete(ptr)
+            ptr = 0
+        }
     }
 
     fun release() = finalize()
@@ -46,6 +49,7 @@ class KeywordSpotter(
     }
 
     fun decode(stream: OnlineStream) = decode(ptr, stream.ptr)
+    fun reset(stream: OnlineStream) = reset(ptr, stream.ptr)
     fun isReady(stream: OnlineStream) = isReady(ptr, stream.ptr)
     fun getResult(stream: OnlineStream): KeywordSpotterResult {
         val objArray = getResult(ptr, stream.ptr)
@@ -71,6 +75,7 @@ class KeywordSpotter(
     private external fun createStream(ptr: Long, keywords: String): Long
     private external fun isReady(ptr: Long, streamPtr: Long): Boolean
     private external fun decode(ptr: Long, streamPtr: Long)
+    private external fun reset(ptr: Long, streamPtr: Long)
     private external fun getResult(ptr: Long, streamPtr: Long): Array<Any>
 
     companion object {

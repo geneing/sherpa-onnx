@@ -7,20 +7,24 @@
 #include <algorithm>
 #include <cctype>
 #include <fstream>
+#include <iomanip>
+#include <memory>
 #include <sstream>
+#include <strstream>
 #include <utility>
 
 #if __ANDROID_API__ >= 9
-#include <strstream>
-
 #include "android/asset_manager.h"
 #include "android/asset_manager_jni.h"
 #endif
 
-#include <memory>
+#if __OHOS__
+#include "rawfile/raw_file_manager.h"
+#endif
 
 #include "sherpa-onnx/csrc/macros.h"
 #include "sherpa-onnx/csrc/onnx-utils.h"
+#include "sherpa-onnx/csrc/symbol-table.h"
 #include "sherpa-onnx/csrc/text-utils.h"
 
 namespace sherpa_onnx {
@@ -74,45 +78,6 @@ static std::vector<std::string> ProcessHeteronyms(
   return ans;
 }
 
-// Note: We don't use SymbolTable here since tokens may contain a blank
-// in the first column
-std::unordered_map<std::string, int32_t> ReadTokens(std::istream &is) {
-  std::unordered_map<std::string, int32_t> token2id;
-
-  std::string line;
-
-  std::string sym;
-  int32_t id;
-  while (std::getline(is, line)) {
-    std::istringstream iss(line);
-    iss >> sym;
-    if (iss.eof()) {
-      id = atoi(sym.c_str());
-      sym = " ";
-    } else {
-      iss >> id;
-    }
-
-    // eat the trailing \r\n on windows
-    iss >> std::ws;
-    if (!iss.eof()) {
-      SHERPA_ONNX_LOGE("Error: %s", line.c_str());
-      exit(-1);
-    }
-
-#if 0
-    if (token2id.count(sym)) {
-      SHERPA_ONNX_LOGE("Duplicated token %s. Line %s. Existing ID: %d",
-                       sym.c_str(), line.c_str(), token2id.at(sym));
-      exit(-1);
-    }
-#endif
-    token2id.insert({std::move(sym), id});
-  }
-
-  return token2id;
-}
-
 std::vector<int32_t> ConvertTokensToIds(
     const std::unordered_map<std::string, int32_t> &token2id,
     const std::vector<std::string> &tokens) {
@@ -148,8 +113,8 @@ Lexicon::Lexicon(const std::string &lexicon, const std::string &tokens,
   InitPunctuations(punctuations);
 }
 
-#if __ANDROID_API__ >= 9
-Lexicon::Lexicon(AAssetManager *mgr, const std::string &lexicon,
+template <typename Manager>
+Lexicon::Lexicon(Manager *mgr, const std::string &lexicon,
                  const std::string &tokens, const std::string &punctuations,
                  const std::string &language, bool debug /*= false*/
                  )
@@ -170,9 +135,8 @@ Lexicon::Lexicon(AAssetManager *mgr, const std::string &lexicon,
 
   InitPunctuations(punctuations);
 }
-#endif
 
-std::vector<std::vector<int64_t>> Lexicon::ConvertTextToTokenIds(
+std::vector<TokenIDs> Lexicon::ConvertTextToTokenIds(
     const std::string &text, const std::string & /*voice*/ /*= ""*/) const {
   switch (language_) {
     case Language::kChinese:
@@ -187,7 +151,7 @@ std::vector<std::vector<int64_t>> Lexicon::ConvertTextToTokenIds(
   return {};
 }
 
-std::vector<std::vector<int64_t>> Lexicon::ConvertTextToTokenIdsChinese(
+std::vector<TokenIDs> Lexicon::ConvertTextToTokenIdsChinese(
     const std::string &_text) const {
   std::string text(_text);
   ToLowerCase(&text);
@@ -196,20 +160,29 @@ std::vector<std::vector<int64_t>> Lexicon::ConvertTextToTokenIdsChinese(
   words = ProcessHeteronyms(words);
 
   if (debug_) {
-    fprintf(stderr, "Input text in string: %s\n", text.c_str());
-    fprintf(stderr, "Input text in bytes:");
+    std::ostringstream os;
+
+    os << "Input text in string: " << text << "\n";
+    os << "Input text in bytes:";
     for (uint8_t c : text) {
-      fprintf(stderr, " %02x", c);
+      os << " 0x" << std::setfill('0') << std::setw(2) << std::right << std::hex
+         << c;
     }
-    fprintf(stderr, "\n");
-    fprintf(stderr, "After splitting to words:");
+    os << "\n";
+    os << "After splitting to words:";
     for (const auto &w : words) {
-      fprintf(stderr, " %s", w.c_str());
+      os << " " << w;
     }
-    fprintf(stderr, "\n");
+    os << "\n";
+
+#if __OHOS__
+    SHERPA_ONNX_LOGE("%{public}s", os.str().c_str());
+#else
+    SHERPA_ONNX_LOGE("%s", os.str().c_str());
+#endif
   }
 
-  std::vector<std::vector<int64_t>> ans;
+  std::vector<TokenIDs> ans;
   std::vector<int64_t> this_sentence;
 
   int32_t blank = -1;
@@ -253,7 +226,8 @@ std::vector<std::vector<int64_t>> Lexicon::ConvertTextToTokenIdsChinese(
         if (eos != -1) {
           this_sentence.push_back(eos);
         }
-        ans.push_back(std::move(this_sentence));
+        ans.emplace_back(std::move(this_sentence));
+        this_sentence = {};
 
         if (sil != -1) {
           this_sentence.push_back(sil);
@@ -282,12 +256,12 @@ std::vector<std::vector<int64_t>> Lexicon::ConvertTextToTokenIdsChinese(
   if (eos != -1) {
     this_sentence.push_back(eos);
   }
-  ans.push_back(std::move(this_sentence));
+  ans.emplace_back(std::move(this_sentence));
 
   return ans;
 }
 
-std::vector<std::vector<int64_t>> Lexicon::ConvertTextToTokenIdsNotChinese(
+std::vector<TokenIDs> Lexicon::ConvertTextToTokenIdsNotChinese(
     const std::string &_text) const {
   std::string text(_text);
   ToLowerCase(&text);
@@ -295,22 +269,31 @@ std::vector<std::vector<int64_t>> Lexicon::ConvertTextToTokenIdsNotChinese(
   std::vector<std::string> words = SplitUtf8(text);
 
   if (debug_) {
-    fprintf(stderr, "Input text (lowercase) in string: %s\n", text.c_str());
-    fprintf(stderr, "Input text in bytes:");
+    std::ostringstream os;
+
+    os << "Input text (lowercase) in string: " << text << "\n";
+    os << "Input text in bytes:";
     for (uint8_t c : text) {
-      fprintf(stderr, " %02x", c);
+      os << " 0x" << std::setfill('0') << std::setw(2) << std::right << std::hex
+         << c;
     }
-    fprintf(stderr, "\n");
-    fprintf(stderr, "After splitting to words:");
+    os << "\n";
+    os << "After splitting to words:";
     for (const auto &w : words) {
-      fprintf(stderr, " %s", w.c_str());
+      os << " " << w;
     }
-    fprintf(stderr, "\n");
+    os << "\n";
+
+#if __OHOS__
+    SHERPA_ONNX_LOGE("%{public}s", os.str().c_str());
+#else
+    SHERPA_ONNX_LOGE("%s", os.str().c_str());
+#endif
   }
 
   int32_t blank = token2id_.at(" ");
 
-  std::vector<std::vector<int64_t>> ans;
+  std::vector<TokenIDs> ans;
   std::vector<int64_t> this_sentence;
 
   for (const auto &w : words) {
@@ -323,7 +306,8 @@ std::vector<std::vector<int64_t>> Lexicon::ConvertTextToTokenIdsNotChinese(
 
       if (w != ",") {
         this_sentence.push_back(blank);
-        ans.push_back(std::move(this_sentence));
+        ans.emplace_back(std::move(this_sentence));
+        this_sentence = {};
       }
 
       continue;
@@ -346,7 +330,7 @@ std::vector<std::vector<int64_t>> Lexicon::ConvertTextToTokenIdsNotChinese(
   }
 
   if (!this_sentence.empty()) {
-    ans.push_back(std::move(this_sentence));
+    ans.emplace_back(std::move(this_sentence));
   }
 
   return ans;
@@ -406,5 +390,19 @@ void Lexicon::InitPunctuations(const std::string &punctuations) {
     punctuations_.insert(std::move(s));
   }
 }
+
+#if __ANDROID_API__ >= 9
+template Lexicon::Lexicon(AAssetManager *mgr, const std::string &lexicon,
+                          const std::string &tokens,
+                          const std::string &punctuations,
+                          const std::string &language, bool debug = false);
+#endif
+
+#if __OHOS__
+template Lexicon::Lexicon(NativeResourceManager *mgr,
+                          const std::string &lexicon, const std::string &tokens,
+                          const std::string &punctuations,
+                          const std::string &language, bool debug = false);
+#endif
 
 }  // namespace sherpa_onnx
